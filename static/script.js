@@ -35,7 +35,7 @@ let currentUser = null;
 let idToken = null;
 let selectedDrugs = new Set();
 let cloudHistory = [];
-let patientProfile = JSON.parse(localStorage.getItem('medinteract_profile')) || { age: '', conditions: '' };
+let patientProfile = { age: '', conditions: '' };
 
 // ── DOM Refs ──
 const authOverlay    = document.getElementById('auth-overlay');
@@ -176,6 +176,17 @@ function showApp(user) {
         const adminLink = document.getElementById('admin-nav-link');
         if (adminLink) adminLink.style.display = 'flex';
     }
+
+    // Load user-specific patient profile
+    const profileKey = `medinteract_profile_${user.uid}`;
+    patientProfile = JSON.parse(localStorage.getItem(profileKey)) || { age: '', conditions: '' };
+    
+    const profileAge = document.getElementById('profile-age');
+    const profileConditions = document.getElementById('profile-conditions');
+    const useProfileToggle = document.getElementById('use-profile-toggle');
+    if (profileAge) profileAge.value = patientProfile.age || '';
+    if (profileConditions) profileConditions.value = patientProfile.conditions || '';
+    if (useProfileToggle) useProfileToggle.checked = !!(patientProfile.age || patientProfile.conditions);
 }
 
 function showAuth() {
@@ -393,7 +404,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     saveProfileBtn.addEventListener('click', () => {
         patientProfile = { age: profileAge.value.trim(), conditions: profileConditions.value.trim() };
-        localStorage.setItem('medinteract_profile', JSON.stringify(patientProfile));
+        if (currentUser) {
+            localStorage.setItem(`medinteract_profile_${currentUser.uid}`, JSON.stringify(patientProfile));
+        }
         useProfileToggle.checked = true;
         profileStatus.textContent = "Profile Saved!";
         profileStatus.className = "status-msg success";
