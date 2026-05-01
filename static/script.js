@@ -170,6 +170,12 @@ function showApp(user) {
     if (user.photoURL) {
         userAvatar.innerHTML = `<img src="${user.photoURL}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
     }
+    
+    // Show admin link if user is admin
+    if (user.email === 'vk.projects.01@gmail.com') {
+        const adminLink = document.getElementById('admin-nav-link');
+        if (adminLink) adminLink.style.display = 'flex';
+    }
 }
 
 function showAuth() {
