@@ -12,12 +12,13 @@ import {
 
 // ── Firebase Config (must match script.js) ──
 const firebaseConfig = {
-    apiKey: "REPLACE_WITH_YOUR_FIREBASE_API_KEY",
-    authDomain: "REPLACE_WITH_YOUR_AUTH_DOMAIN",
-    projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
-    storageBucket: "REPLACE_WITH_YOUR_STORAGE_BUCKET",
-    messagingSenderId: "REPLACE_WITH_YOUR_SENDER_ID",
-    appId: "REPLACE_WITH_YOUR_APP_ID"
+  apiKey: "AIzaSyD1QLU_S96MJN_QE14H3U-g-plHB-XCNJY",
+  authDomain: "ai-safescript.firebaseapp.com",
+  projectId: "ai-safescript",
+  storageBucket: "ai-safescript.firebasestorage.app",
+  messagingSenderId: "958294995951",
+  appId: "1:958294995951:web:02fb15c7594e911664bc1a",
+  measurementId: "G-ZXSNQDDHWT"
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
