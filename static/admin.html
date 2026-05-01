@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel — MedInteract Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+<div id="admin-auth-check" class="auth-overlay">
+    <div class="auth-modal glass-panel" style="text-align:center;">
+        <div class="brand-icon" style="margin:0 auto 1rem;"><i class="fa-solid fa-shield-halved"></i></div>
+        <h2 style="color:var(--gold);">Admin Panel</h2>
+        <p class="text-muted" style="margin-top:0.5rem;">Verifying admin access...</p>
+        <div class="pulse-ring" style="margin:2rem auto;"></div>
+        <div id="admin-access-error" class="auth-error hidden" style="margin-top:1rem;"></div>
+        <a href="/" class="text-btn" style="display:block;margin-top:1rem;">← Back to App</a>
+    </div>
+</div>
+
+<div class="app-container" id="admin-app" style="display:none;">
+
+    <!-- Sidebar -->
+    <aside class="sidebar glass-panel">
+        <div class="brand">
+            <div class="brand-icon"><i class="fa-solid fa-shield-halved"></i></div>
+            <h2>Admin<span>.Panel</span></h2>
+        </div>
+        <nav class="nav-menu">
+            <button class="nav-item active" data-view="overview"><i class="fa-solid fa-chart-line"></i> Overview</button>
+            <button class="nav-item" data-view="all-history"><i class="fa-solid fa-database"></i> All Searches</button>
+            <button class="nav-item" data-view="top-drugs"><i class="fa-solid fa-ranking-star"></i> Top Drugs</button>
+        </nav>
+        <div class="sidebar-bottom">
+            <a href="/" class="nav-item"><i class="fa-solid fa-arrow-left"></i> Back to App</a>
+            <div class="user-card" id="admin-user-card">
+                <div class="avatar"><i class="fa-solid fa-user-shield"></i></div>
+                <div class="user-info">
+                    <p class="name" id="admin-user-name">Admin</p>
+                    <p class="role" id="admin-user-email">...</p>
+                </div>
+                <button class="logout-btn" id="admin-logout-btn" title="Sign Out">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="top-header glass-panel">
+            <div class="header-title">
+                <h1>Admin Dashboard</h1>
+                <p>Real-time platform analytics and usage statistics.</p>
+            </div>
+            <div class="header-actions">
+                <button class="action-btn" id="refresh-admin-btn" title="Refresh Data"><i class="fa-solid fa-arrows-rotate"></i></button>
+            </div>
+        </header>
+
+        <div class="views-container">
+
+            <!-- ── Overview View ── -->
+            <div class="view active" id="view-overview">
+
+                <!-- Stats Cards -->
+                <div class="stats-grid" id="stats-grid">
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg,#6366f1,#8b5cf6);">
+                            <i class="fa-solid fa-magnifying-glass-chart"></i>
+                        </div>
+                        <div class="stat-info">
+                            <p>Total Checks</p>
+                            <h2 id="stat-total-checks">—</h2>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg,#f43f5e,#e11d48);">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        </div>
+                        <div class="stat-info">
+                            <p>Severe Caught</p>
+                            <h2 id="stat-severe">—</h2>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg,#10b981,#059669);">
+                            <i class="fa-solid fa-users"></i>
+                        </div>
+                        <div class="stat-info">
+                            <p>Unique Users</p>
+                            <h2 id="stat-users">—</h2>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg,#f59e0b,#d97706);">
+                            <i class="fa-solid fa-link-slash"></i>
+                        </div>
+                        <div class="stat-info">
+                            <p>Interactions Found</p>
+                            <h2 id="stat-interactions">—</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity Table -->
+                <div class="glass-card mt-4">
+                    <div class="flex-between mb-4">
+                        <h3><i class="fa-solid fa-clock-rotate-left"></i> Recent Activity (Last 10)</h3>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="admin-table" id="recent-table">
+                            <thead>
+                                <tr>
+                                    <th>Drugs Checked</th>
+                                    <th>Interactions</th>
+                                    <th>Severity</th>
+                                    <th>Time</th>
+                                    <th>User ID</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-table-body">
+                                <tr><td colspan="5" style="text-align:center;opacity:.5;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── All History View ── -->
+            <div class="view" id="view-all-history">
+                <div class="glass-card full-height">
+                    <div class="flex-between mb-4">
+                        <h3><i class="fa-solid fa-database"></i> All User Searches</h3>
+                        <input type="text" id="search-filter" placeholder="Filter by drug name..." style="max-width:260px;" class="filter-input">
+                    </div>
+                    <div class="table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Drugs</th>
+                                    <th>Interactions</th>
+                                    <th>Severity</th>
+                                    <th>Timestamp</th>
+                                    <th>User UID</th>
+                                </tr>
+                            </thead>
+                            <tbody id="all-history-body">
+                                <tr><td colspan="5" style="text-align:center;opacity:.5;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Top Drugs View ── -->
+            <div class="view" id="view-top-drugs">
+                <div class="glass-card full-height">
+                    <h3 class="mb-4"><i class="fa-solid fa-ranking-star"></i> Most Searched Drugs</h3>
+                    <div id="top-drugs-list" class="top-drugs-list">
+                        <p class="text-muted">Loading...</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<script type="module" src="/static/admin.js"></script>
+</body>
+</html>

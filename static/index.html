@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedInteract Pro - AI Drug Safety</title>
+    <meta name="description" content="Premium AI-Based Prescription Error and Drug Interaction Checker powered by Firebase & Gemini AI">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+<!-- ═══════════════════════ AUTH MODAL ═══════════════════════ -->
+<div id="auth-overlay" class="auth-overlay">
+    <div class="auth-modal glass-panel">
+        <div class="auth-brand">
+            <div class="brand-icon"><i class="fa-solid fa-staff-snake"></i></div>
+            <h2>MedInteract<span>.Pro</span></h2>
+            <p>AI-Powered Drug Interaction Safety</p>
+        </div>
+
+        <div class="auth-tabs">
+            <button class="auth-tab active" id="tab-login">Sign In</button>
+            <button class="auth-tab" id="tab-signup">Create Account</button>
+        </div>
+
+        <!-- Login Form -->
+        <form id="login-form" class="auth-form">
+            <div class="form-group">
+                <label><i class="fa-solid fa-envelope"></i> Email</label>
+                <input type="email" id="login-email" placeholder="doctor@hospital.com" required>
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-lock"></i> Password</label>
+                <input type="password" id="login-password" placeholder="••••••••" required>
+            </div>
+            <div id="login-error" class="auth-error hidden"></div>
+            <button type="submit" class="btn-primary btn-auth" id="login-btn">
+                <i class="fa-solid fa-right-to-bracket"></i> Sign In
+            </button>
+            <button type="button" class="btn-google" id="google-login-btn">
+                <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+                Continue with Google
+            </button>
+        </form>
+
+        <!-- Signup Form -->
+        <form id="signup-form" class="auth-form hidden">
+            <div class="form-group">
+                <label><i class="fa-solid fa-user-doctor"></i> Full Name</label>
+                <input type="text" id="signup-name" placeholder="Dr. John Smith" required>
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-envelope"></i> Email</label>
+                <input type="email" id="signup-email" placeholder="doctor@hospital.com" required>
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-lock"></i> Password</label>
+                <input type="password" id="signup-password" placeholder="Min. 6 characters" required>
+            </div>
+            <div id="signup-error" class="auth-error hidden"></div>
+            <button type="submit" class="btn-primary btn-auth" id="signup-btn">
+                <i class="fa-solid fa-user-plus"></i> Create Account
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- ═══════════════════════ MAIN APP ═══════════════════════ -->
+<div class="app-container" id="app-container" style="display:none;">
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar glass-panel">
+        <div class="brand">
+            <div class="brand-icon"><i class="fa-solid fa-staff-snake"></i></div>
+            <h2>MedInteract<span>.Pro</span></h2>
+        </div>
+
+        <nav class="nav-menu">
+            <button class="nav-item active" data-view="dashboard">
+                <i class="fa-solid fa-chart-pie"></i> Dashboard
+            </button>
+            <button class="nav-item" data-view="history">
+                <i class="fa-solid fa-clock-rotate-left"></i> History
+                <span class="nav-badge" id="history-count-badge"></span>
+            </button>
+            <button class="nav-item" data-view="profile">
+                <i class="fa-solid fa-user-doctor"></i> Patient Profile
+            </button>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <a href="/admin" class="nav-item admin-link" id="admin-nav-link" style="display:none;">
+                <i class="fa-solid fa-shield-halved"></i> Admin Panel
+            </a>
+            <div class="user-card" id="user-card">
+                <div class="avatar" id="user-avatar"><i class="fa-solid fa-user"></i></div>
+                <div class="user-info">
+                    <p class="name" id="user-name">Loading...</p>
+                    <p class="role" id="user-email">...</p>
+                </div>
+                <button class="logout-btn" id="logout-btn" title="Sign Out">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="top-header glass-panel">
+            <div class="header-title">
+                <h1 id="page-title">Interaction Check Dashboard</h1>
+                <p>Analyze prescriptions with advanced AI & Firebase cloud sync.</p>
+            </div>
+            <div class="header-actions">
+                <div class="sync-indicator" id="sync-indicator" title="Cloud sync status">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </div>
+                <button class="action-btn" title="Print Report" id="print-btn"><i class="fa-solid fa-print"></i></button>
+                <button class="action-btn" title="Settings"><i class="fa-solid fa-gear"></i></button>
+            </div>
+        </header>
+
+        <div class="views-container">
+
+            <!-- ── Dashboard View ── -->
+            <div class="view active" id="view-dashboard">
+                <div class="dashboard-grid">
+                    <div class="input-column">
+                        <div class="glass-card">
+                            <h3><i class="fa-solid fa-pills"></i> Add Medications</h3>
+
+                            <div class="input-tabs">
+                                <button class="tab-btn active" data-tab="manual">Manual Entry</button>
+                                <button class="tab-btn" data-tab="upload">Scan Rx</button>
+                            </div>
+
+                            <div class="tab-content active" id="manual">
+                                <div class="input-wrapper">
+                                    <input type="text" id="drug-input" placeholder="e.g. Aspirin, Metformin..." autocomplete="off">
+                                    <button id="add-drug-btn"><i class="fa-solid fa-plus"></i></button>
+                                </div>
+                                <div id="drug-suggestions" class="suggestions-container hidden"></div>
+                            </div>
+
+                            <div class="tab-content" id="upload">
+                                <div class="upload-area" id="drop-zone">
+                                    <input type="file" id="file-input" accept="image/*" hidden>
+                                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                                    <p>Drag &amp; Drop prescription image</p>
+                                    <button class="browse-btn" onclick="document.getElementById('file-input').click()">Browse Files</button>
+                                </div>
+                                <div id="upload-status" class="status-msg hidden"></div>
+                            </div>
+
+                            <div class="drugs-container mt-4">
+                                <div class="flex-between">
+                                    <h4>Selected Medicines (<span id="drug-count">0</span>)</h4>
+                                    <button id="clear-btn" class="text-btn text-danger"><i class="fa-solid fa-trash-can"></i> Clear</button>
+                                </div>
+                                <div id="drugs-list" class="drugs-list"></div>
+                            </div>
+
+                            <div class="profile-toggle mt-4">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="use-profile-toggle">
+                                    <span class="slider round"></span>
+                                </label>
+                                <span class="toggle-label">Include Patient Profile in AI Analysis</span>
+                            </div>
+
+                            <button id="check-btn" class="btn-primary mt-4" disabled>
+                                <i class="fa-solid fa-bolt"></i> Analyze Interactions
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="results-column">
+                        <div class="glass-card full-height results-card">
+                            <div class="results-header">
+                                <h3><i class="fa-solid fa-microscope"></i> Analysis Results</h3>
+                                <span id="interaction-summary" class="badge">Awaiting Input</span>
+                            </div>
+                            <div id="loader" class="loader-container hidden">
+                                <div class="pulse-ring"></div>
+                                <p>AI is analyzing combinations...</p>
+                            </div>
+                            <div id="results-content" class="results-content">
+                                <div class="empty-state">
+                                    <div class="icon-bg"><i class="fa-solid fa-file-waveform"></i></div>
+                                    <p>Add 2 or more medicines to view safety analysis and AI report.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── History View ── -->
+            <div class="view" id="view-history">
+                <div class="glass-card full-height">
+                    <div class="flex-between mb-4">
+                        <h3><i class="fa-solid fa-clock-rotate-left"></i> Cloud History</h3>
+                        <div class="flex-gap">
+                            <button id="refresh-history-btn" class="text-btn"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+                            <button id="clear-history-btn" class="text-btn text-danger"><i class="fa-solid fa-trash"></i> Clear All</button>
+                        </div>
+                    </div>
+                    <div id="history-loading" class="loader-container hidden">
+                        <div class="pulse-ring"></div><p>Loading from cloud...</p>
+                    </div>
+                    <div id="history-list" class="history-grid"></div>
+                </div>
+            </div>
+
+            <!-- ── Profile View ── -->
+            <div class="view" id="view-profile">
+                <div class="glass-card profile-card">
+                    <h3><i class="fa-solid fa-user-pen"></i> Patient Context Profile</h3>
+                    <p class="text-muted mb-4">This information will personalize the AI medical analysis.</p>
+                    <div class="form-group">
+                        <label>Patient Age</label>
+                        <input type="number" id="profile-age" placeholder="e.g. 65" min="1" max="120">
+                    </div>
+                    <div class="form-group mt-3">
+                        <label>Known Medical Conditions &amp; Allergies</label>
+                        <textarea id="profile-conditions" rows="4" placeholder="e.g. Type 2 Diabetes, Hypertension, Penicillin allergy"></textarea>
+                    </div>
+                    <button id="save-profile-btn" class="btn-primary mt-4">Save Profile</button>
+                    <div id="profile-status" class="status-msg hidden mt-2"></div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module" src="/static/script.js"></script>
+</body>
+</html>

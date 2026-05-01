@@ -1,0 +1,630 @@
+import os
+import json
+import re
+import io
+import requests
+from datetime import datetime, timezone
+from typing import List, Optional
+
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Request, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel
+from dotenv import load_dotenv
+
+import pytesseract
+from PIL import Image
+
+load_dotenv()
+
+# ─── AI Setup ────────────────────────────────────────────────────────────────
+try:
+    import google.generativeai as genai
+    AI_AVAILABLE = True
+    if os.environ.get("GEMINI_API_KEY"):
+        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+except ImportError:
+    AI_AVAILABLE = False
+
+# ─── Firebase Setup ───────────────────────────────────────────────────────────
+try:
+    import firebase_admin
+    from firebase_admin import credentials, firestore, auth as fb_auth
+
+    _sa_env = os.environ.get("FIREBASE_SERVICE_ACCOUNT", "")
+    if _sa_env:
+        sa_dict = json.loads(_sa_env)
+        cred = credentials.Certificate(sa_dict)
+    else:
+        # Local dev: use service account file if present
+        _sa_file = os.path.join(os.path.dirname(__file__), "serviceAccountKey.json")
+        if os.path.exists(_sa_file):
+            cred = credentials.Certificate(_sa_file)
+        else:
+            cred = None
+
+    if cred and not firebase_admin._apps:
+        firebase_admin.initialize_app(cred)
+
+    db = firestore.client() if cred else None
+    FIREBASE_AVAILABLE = db is not None
+except Exception as e:
+    print(f"Firebase init failed: {e}")
+    FIREBASE_AVAILABLE = False
+    db = None
+
+# ─── App ─────────────────────────────────────────────────────────────────────
+app = FastAPI(title="MedInteract Pro API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+base_dir = os.path.dirname(os.path.abspath(__file__))
+static_path = os.path.join(base_dir, "static")
+os.makedirs(static_path, exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=static_path), name="static")
+
+# ─── Pydantic Models ─────────────────────────────────────────────────────────
+class CheckRequest(BaseModel):
+    drugs: List[str]
+    patient_age: Optional[int] = None
+    patient_conditions: Optional[str] = None
+
+class ValidateRequest(BaseModel):
+    drug: str
+
+class SaveHistoryRequest(BaseModel):
+    uid: str
+    drugs: List[str]
+    interactions_count: int
+    severity: Optional[str] = "None"
+    ai_report_summary: Optional[str] = ""
+
+# ─── Auth Helper ─────────────────────────────────────────────────────────────
+def get_uid_from_token(request: Request) -> Optional[str]:
+    """Extract Firebase UID from Bearer token. Returns None if not authenticated."""
+    if not FIREBASE_AVAILABLE:
+        return None
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header.split(" ", 1)[1]
+    try:
+        decoded = fb_auth.verify_id_token(token)
+        return decoded["uid"]
+    except Exception:
+        return None
+
+# ─── Routes ──────────────────────────────────────────────────────────────────
+@app.get("/")
+def read_root():
+    return FileResponse(os.path.join(static_path, "index.html"))
+
+@app.get("/admin")
+def read_admin():
+    return FileResponse(os.path.join(static_path, "admin.html"))
+
+# ─── Auth Verify ─────────────────────────────────────────────────────────────
+@app.post("/api/auth/verify")
+async def verify_token(request: Request):
+    """Verify Firebase ID token and return user info."""
+    uid = get_uid_from_token(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Invalid or missing token")
+    try:
+        user = fb_auth.get_user(uid)
+        return {
+            "uid": uid,
+            "email": user.email,
+            "displayName": user.display_name,
+            "photoURL": user.photo_url
+        }
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+# ─── History ─────────────────────────────────────────────────────────────────
+@app.get("/api/history")
+async def get_history(request: Request):
+    """Get authenticated user's interaction history from Firestore."""
+    uid = get_uid_from_token(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if not FIREBASE_AVAILABLE:
+        return {"history": []}
+    try:
+        docs = (
+            db.collection("interaction_history")
+            .where("uid", "==", uid)
+            .order_by("timestamp", direction=firestore.Query.DESCENDING)
+            .limit(50)
+            .stream()
+        )
+        history = []
+        for doc in docs:
+            d = doc.to_dict()
+            d["id"] = doc.id
+            # Convert Firestore timestamp to ISO string
+            if hasattr(d.get("timestamp"), "isoformat"):
+                d["timestamp"] = d["timestamp"].isoformat()
+            history.append(d)
+        return {"history": history}
+    except Exception as e:
+        print(f"History fetch error: {e}")
+        return {"history": []}
+
+@app.post("/api/history/save")
+async def save_history(req: SaveHistoryRequest, request: Request):
+    """Save an interaction check to Firestore."""
+    uid = get_uid_from_token(request)
+    if not uid or uid != req.uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not FIREBASE_AVAILABLE:
+        return {"saved": False}
+    try:
+        doc_ref = db.collection("interaction_history").document()
+        doc_ref.set({
+            "uid": uid,
+            "drugs": req.drugs,
+            "interactions_count": req.interactions_count,
+            "severity": req.severity,
+            "ai_report_summary": req.ai_report_summary[:500] if req.ai_report_summary else "",
+            "timestamp": datetime.now(timezone.utc)
+        })
+        # Update global stats
+        _increment_stats(req.drugs, req.interactions_count, req.severity)
+        return {"saved": True, "id": doc_ref.id}
+    except Exception as e:
+        print(f"Save history error: {e}")
+        return {"saved": False, "error": str(e)}
+
+@app.delete("/api/history/{doc_id}")
+async def delete_history_item(doc_id: str, request: Request):
+    """Delete a single history item."""
+    uid = get_uid_from_token(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not FIREBASE_AVAILABLE:
+        return {"deleted": False}
+    try:
+        doc_ref = db.collection("interaction_history").document(doc_id)
+        doc = doc_ref.get()
+        if doc.exists and doc.to_dict().get("uid") == uid:
+            doc_ref.delete()
+            return {"deleted": True}
+        raise HTTPException(status_code=403, detail="Forbidden")
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {"deleted": False, "error": str(e)}
+
+# ─── Admin ───────────────────────────────────────────────────────────────────
+ADMIN_EMAILS = [e.strip() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()]
+
+def _is_admin(uid: str) -> bool:
+    if not FIREBASE_AVAILABLE or not uid:
+        return False
+    try:
+        user = fb_auth.get_user(uid)
+        return user.email in ADMIN_EMAILS
+    except Exception:
+        return False
+
+def _increment_stats(drugs: List[str], interaction_count: int, severity: str):
+    if not FIREBASE_AVAILABLE:
+        return
+    try:
+        stats_ref = db.collection("stats").document("global")
+        stats_ref.set({
+            "total_checks": firestore.Increment(1),
+            "total_interactions_found": firestore.Increment(interaction_count),
+            "severe_caught": firestore.Increment(1 if severity == "Severe" else 0),
+            "last_updated": datetime.now(timezone.utc)
+        }, merge=True)
+    except Exception as e:
+        print(f"Stats update error: {e}")
+
+@app.get("/api/admin/stats")
+async def get_admin_stats(request: Request):
+    uid = get_uid_from_token(request)
+    if not _is_admin(uid):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    if not FIREBASE_AVAILABLE:
+        return {"stats": {}}
+    try:
+        stats_doc = db.collection("stats").document("global").get()
+        stats = stats_doc.to_dict() if stats_doc.exists else {}
+        if "last_updated" in stats and hasattr(stats["last_updated"], "isoformat"):
+            stats["last_updated"] = stats["last_updated"].isoformat()
+
+        # Count unique users
+        user_count_query = db.collection("interaction_history").stream()
+        uids = set(d.to_dict().get("uid") for d in user_count_query)
+        stats["total_users"] = len(uids)
+
+        return {"stats": stats}
+    except Exception as e:
+        return {"stats": {}, "error": str(e)}
+
+@app.get("/api/admin/history")
+async def get_admin_history(request: Request):
+    uid = get_uid_from_token(request)
+    if not _is_admin(uid):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    if not FIREBASE_AVAILABLE:
+        return {"history": []}
+    try:
+        docs = (
+            db.collection("interaction_history")
+            .order_by("timestamp", direction=firestore.Query.DESCENDING)
+            .limit(100)
+            .stream()
+        )
+        history = []
+        for doc in docs:
+            d = doc.to_dict()
+            d["id"] = doc.id
+            if hasattr(d.get("timestamp"), "isoformat"):
+                d["timestamp"] = d["timestamp"].isoformat()
+            history.append(d)
+        return {"history": history}
+    except Exception as e:
+        return {"history": [], "error": str(e)}
+
+@app.get("/api/admin/top_drugs")
+async def get_top_drugs(request: Request):
+    uid = get_uid_from_token(request)
+    if not _is_admin(uid):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    if not FIREBASE_AVAILABLE:
+        return {"top_drugs": []}
+    try:
+        docs = db.collection("interaction_history").stream()
+        drug_counts = {}
+        for doc in docs:
+            for drug in doc.to_dict().get("drugs", []):
+                drug_counts[drug] = drug_counts.get(drug, 0) + 1
+        sorted_drugs = sorted(drug_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        return {"top_drugs": [{"drug": k, "count": v} for k, v in sorted_drugs]}
+    except Exception as e:
+        return {"top_drugs": [], "error": str(e)}
+
+# ─── AI Cache Helper ──────────────────────────────────────────────────────────
+def _get_cached(key: str):
+    if not FIREBASE_AVAILABLE:
+        return None
+    try:
+        doc = db.collection("ai_cache").document(key).get()
+        if doc.exists:
+            data = doc.to_dict()
+            expires = data.get("expires_at")
+            now = datetime.now(timezone.utc)
+            if expires and expires.replace(tzinfo=timezone.utc) > now:
+                return data.get("result")
+    except Exception:
+        pass
+    return None
+
+def _set_cache(key: str, result: dict):
+    if not FIREBASE_AVAILABLE:
+        return
+    try:
+        from datetime import timedelta
+        db.collection("ai_cache").document(key).set({
+            "result": result,
+            "cached_at": datetime.now(timezone.utc),
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7)
+        })
+    except Exception as e:
+        print(f"Cache write error: {e}")
+
+# ─── Drug Utilities ───────────────────────────────────────────────────────────
+def extract_drugs_from_text(text: str) -> List[str]:
+    key = os.environ.get("GEMINI_API_KEY", "")
+    if not AI_AVAILABLE or not key or key == "your_api_key_here":
+        words = re.findall(r'\b[a-zA-Z]{5,}\b', text.lower())
+        return list(set(words))
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        prompt = f"""You are a highly accurate medical text extraction AI. Extract ONLY valid, real-world medication names.
+Return ONLY a comma-separated list. If no drugs found, return "NONE".
+
+Text:
+{text}"""
+        response = model.generate_content(prompt)
+        res_text = response.text.strip().replace('`', '').strip()
+        if res_text.upper() == "NONE" or not res_text:
+            return []
+        return [d.strip().lower() for d in res_text.split(',') if d.strip()]
+    except Exception as e:
+        print(f"GenAI OCR Error: {e}")
+        words = re.findall(r'\b[a-zA-Z]{5,}\b', text.lower())
+        return list(set(words))
+
+@app.post("/api/upload")
+async def extract_from_image(image: UploadFile = File(...)):
+    try:
+        contents = await image.read()
+        pil_image = Image.open(io.BytesIO(contents))
+        text = pytesseract.image_to_string(pil_image)
+        drugs = extract_drugs_from_text(text)
+        return {"text_extracted": text, "drugs_detected": drugs}
+    except pytesseract.TesseractNotFoundError:
+        return {"error": "Tesseract OCR not installed.", "drugs_detected": []}
+    except Exception as e:
+        return {"error": "OCR processing failed.", "details": str(e), "drugs_detected": []}
+
+@app.post("/api/extract")
+async def extract_from_text(text: str = Form(...)):
+    drugs = extract_drugs_from_text(text)
+    return {"drugs_detected": drugs}
+
+def get_rxnorm_id(drug_name):
+    original_name = drug_name.lower().strip()
+    class_map = {
+        "nsaid": "ibuprofen", "nsaids": "ibuprofen", "ssri": "sertraline",
+        "ssris": "sertraline", "ppi": "omeprazole", "ppis": "omeprazole",
+        "antibiotic": "amoxicillin", "antibiotics": "amoxicillin",
+        "statin": "atorvastatin", "statins": "atorvastatin",
+        "opioid": "morphine", "opioids": "morphine"
+    }
+    mapped_name = class_map.get(original_name, original_name)
+    try:
+        url = f"https://rxnav.nlm.nih.gov/REST/rxcui.json?name={mapped_name}"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if "idGroup" in data and "rxnormId" in data["idGroup"]:
+                return data["idGroup"]["rxnormId"][0]
+    except Exception as e:
+        print(f"RxCUI Error: {e}")
+    return None
+
+def check_nih_interactions(rxcuis):
+    if len(rxcuis) < 2:
+        return []
+    rxcuis_str = "+".join(rxcuis)
+    url = f"https://rxnav.nlm.nih.gov/REST/interaction/list.json?rxcuis={rxcuis_str}"
+    interactions = []
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if "fullInteractionTypeGroup" in data:
+                for group in data["fullInteractionTypeGroup"]:
+                    for int_type in group["fullInteractionType"]:
+                        for interaction_pair in int_type["interactionPair"]:
+                            description = interaction_pair["description"]
+                            severity = interaction_pair.get("severity", "Moderate")
+                            if severity == "N/A": severity = "Moderate"
+                            if severity.lower() == "high": severity = "Severe"
+                            elif severity.lower() not in ["mild", "moderate", "severe"]: severity = "Moderate"
+                            drugs = [c["minConceptItem"]["name"].lower() for c in interaction_pair["interactionConcept"]]
+                            interactions.append({
+                                "drugs": drugs, "severity": severity.capitalize(),
+                                "description": description, "source": "NIH RxNav API"
+                            })
+        return interactions
+    except Exception as e:
+        print(f"NIH API Error: {e}")
+        return None
+
+def generate_ai_response(prompt, safety_settings=None, use_json=True):
+    config = {"response_mime_type": "application/json"} if use_json else None
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash', generation_config=config)
+        return model.generate_content(prompt, safety_settings=safety_settings)
+    except Exception as e:
+        if "429" in str(e) or "quota" in str(e).lower():
+            print("Gemini 2.5 quota exceeded. Trying fallback...")
+            last_err = e
+            try:
+                for m in genai.list_models():
+                    if 'generateContent' in m.supported_generation_methods:
+                        model_name = m.name.replace('models/', '')
+                        if '2.5-flash' in model_name:
+                            continue
+                        try:
+                            print(f"Trying: {model_name}")
+                            model = genai.GenerativeModel(model_name)
+                            return model.generate_content(prompt, safety_settings=safety_settings)
+                        except Exception as inner_e:
+                            last_err = inner_e
+                            continue
+            except Exception as outer_e:
+                print(f"List models failed: {outer_e}")
+            raise Exception(f"All fallback models failed. Last: {str(last_err)}")
+        raise e
+
+@app.post("/api/validate_drug")
+async def validate_drug(req: ValidateRequest):
+    drug = req.drug.strip()
+    key = os.environ.get("GEMINI_API_KEY", "")
+    if AI_AVAILABLE and key and key != "your_api_key_here":
+        try:
+            prompt = f"""You are a medical spell checker. Check if "{drug}" is a correctly spelled, valid medication or drug class.
+If correct: {{"valid": true, "suggestions": []}}
+If wrong: {{"valid": false, "suggestions": ["CorrectName1", "CorrectName2"]}}
+Return ONLY valid JSON."""
+            response = generate_ai_response(prompt)
+            res_text = response.text.strip()
+            for marker in ["```json", "```"]:
+                if res_text.startswith(marker): res_text = res_text[len(marker):]
+            if res_text.endswith("```"): res_text = res_text[:-3]
+            return json.loads(res_text.strip())
+        except Exception as e:
+            print(f"Validation Error: {e}")
+    try:
+        class_map = {
+            "nsaid": "ibuprofen", "nsaids": "ibuprofen", "ssri": "sertraline",
+            "ssris": "sertraline", "ppi": "omeprazole", "ppis": "omeprazole",
+            "antibiotic": "amoxicillin", "antibiotics": "amoxicillin",
+            "statin": "atorvastatin", "statins": "atorvastatin",
+            "opioid": "morphine", "opioids": "morphine"
+        }
+        mapped_drug = class_map.get(drug.lower(), drug.lower())
+        exact_url = f"https://rxnav.nlm.nih.gov/REST/drugs.json?name={mapped_drug}"
+        exact_resp = requests.get(exact_url, timeout=5)
+        if exact_resp.status_code == 200:
+            exact_data = exact_resp.json()
+            if "drugGroup" in exact_data and "conceptGroup" in exact_data["drugGroup"]:
+                if any("conceptProperties" in cg for cg in exact_data["drugGroup"]["conceptGroup"]):
+                    return {"valid": True, "suggestions": []}
+        url = f"https://rxnav.nlm.nih.gov/REST/spellingsuggestions.json?name={drug}"
+        resp = requests.get(url, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            group = data.get("suggestionGroup", {})
+            suggestion_list = group.get("suggestionList", {})
+            if suggestion_list and "suggestion" in suggestion_list:
+                suggs = suggestion_list["suggestion"]
+                if suggs and suggs[0].lower() != drug.lower():
+                    return {"valid": False, "suggestions": suggs[:3]}
+        import difflib
+        COMMON_MEDS = [
+            "aspirin", "ibuprofen", "acetaminophen", "warfarin", "lisinopril",
+            "simvastatin", "amiodarone", "omeprazole", "clopidogrel", "metformin",
+            "atorvastatin", "amlodipine", "azithromycin", "amoxicillin", "losartan",
+            "levothyroxine", "albuterol", "gabapentin", "sertraline", "hydrochlorothiazide",
+            "pantoprazole", "prednisone", "tramadol", "meloxicam", "citalopram",
+        ]
+        matches = difflib.get_close_matches(drug.lower(), COMMON_MEDS, n=3, cutoff=0.55)
+        if matches:
+            return {"valid": False, "suggestions": matches}
+        return {"valid": False, "suggestions": []}
+    except Exception as e:
+        print(f"NIH Fallback Error: {e}")
+    return {"valid": False, "suggestions": []}
+
+@app.post("/api/check")
+async def check_interactions(req: CheckRequest):
+    input_drugs = [d.lower().strip() for d in req.drugs if d.strip()]
+    if len(input_drugs) < 2:
+        return {"interactions": [], "message": "Need at least two drugs."}
+
+    key = os.environ.get("GEMINI_API_KEY", "")
+
+    # Check AI cache first
+    cache_key = "+".join(sorted(input_drugs))
+    cached = _get_cached(cache_key)
+    if cached:
+        cached["from_cache"] = True
+        return cached
+
+    if AI_AVAILABLE and key and key != "your_api_key_here":
+        try:
+            patient_context = ""
+            if req.patient_age or req.patient_conditions:
+                patient_context = "\nPatient Context:\n"
+                if req.patient_age: patient_context += f"- Age: {req.patient_age}\n"
+                if req.patient_conditions: patient_context += f"- Conditions: {req.patient_conditions}\n"
+
+            prompt = f"""You are a highly knowledgeable medical AI assistant. Check drug interactions between: {', '.join(input_drugs)}.
+{patient_context}
+
+Return a strictly valid JSON object:
+{{
+    "interactions": [
+        {{
+            "drugs": ["drug1", "drug2"],
+            "severity": "Severe",
+            "description": "Short explanation.",
+            "source": "AI Medical Analysis"
+        }}
+    ],
+    "ai_report": "Detailed markdown safety report with disclaimer."
+}}
+
+Rules:
+1. severity MUST be exactly: "Severe", "Moderate", or "Mild"
+2. If NO interactions, return empty array [] for interactions
+3. No markdown code blocks in output, just raw JSON"""
+
+            response = generate_ai_response(
+                prompt,
+                safety_settings={
+                    'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
+                    'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
+                    'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
+                    'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
+                },
+                use_json=False
+            )
+
+            try:
+                res_text = response.text.strip()
+            except Exception as safety_err:
+                return {"interactions": [], "ai_report": f"AI Safety Filter Blocked: {str(safety_err)}"}
+
+            for marker in ["```json", "```"]:
+                if res_text.startswith(marker): res_text = res_text[len(marker):]
+            if res_text.endswith("```"): res_text = res_text[:-3]
+
+            data = json.loads(res_text.strip())
+            # Cache the result
+            _set_cache(cache_key, data)
+            return data
+
+        except Exception as e:
+            print(f"GenAI Check Error: {e}")
+            ai_msg = f"AI analysis failed: {str(e)}"
+
+    # NIH Fallback
+    interactions = []
+    rxcuis = []
+    unrecognized = []
+    for drug in input_drugs:
+        rxcui = get_rxnorm_id(drug)
+        if rxcui:
+            rxcuis.append(rxcui)
+        else:
+            unrecognized.append(drug)
+
+    if len(rxcuis) >= 2:
+        nih_interactions = check_nih_interactions(rxcuis)
+        if nih_interactions is not None:
+            interactions = nih_interactions
+        else:
+            interactions.append({
+                "drugs": ["System"], "severity": "Warning",
+                "description": "Backup database unresponsive.",
+                "source": "System Warning"
+            })
+
+    input_set = set(input_drugs)
+    if "aspirin" in input_set and ("nsaids" in input_set or "ibuprofen" in input_set):
+        if not any("aspirin" in [d.lower() for d in i["drugs"]] for i in interactions):
+            interactions.append({
+                "drugs": ["aspirin", "nsaids/ibuprofen"], "severity": "Severe",
+                "description": "Combining NSAIDs with Aspirin significantly increases GI bleeding risk.",
+                "source": "Fallback Knowledge Base"
+            })
+
+    if unrecognized:
+        interactions.append({
+            "drugs": unrecognized, "severity": "Warning",
+            "description": "These medications were not recognized. Check spelling.",
+            "source": "System Warning"
+        })
+
+    unique_interactions = []
+    seen = set()
+    for interaction in interactions:
+        key_set = frozenset(interaction["drugs"])
+        if key_set not in seen:
+            seen.add(key_set)
+            unique_interactions.append(interaction)
+
+    ai_msg = locals().get("ai_msg", "AI analysis unavailable. Displaying raw NIH database results.")
+    return {"interactions": unique_interactions, "ai_report": ai_msg}
+
+if __name__ == "__main__":
+    import uvicorn
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
