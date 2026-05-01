@@ -642,6 +642,61 @@ document.addEventListener('DOMContentLoaded', () => {
         window.print();
     });
 
+    // ── User Account Profile ──
+    const userCard = document.getElementById('user-card');
+    const accountEmail = document.getElementById('account-email');
+    const accountName = document.getElementById('account-name');
+    const saveAccountBtn = document.getElementById('save-account-btn');
+    const accountStatus = document.getElementById('account-status');
+
+    userCard.addEventListener('click', (e) => {
+        // Prevent opening if clicking the logout button directly
+        if (e.target.closest('#logout-btn')) return;
+        
+        // Deactivate all sidebar nav items
+        navItems.forEach(n => n.classList.remove('active'));
+        
+        // Activate account view
+        views.forEach(v => {
+            v.id === `view-account` ? v.classList.add('active') : v.classList.remove('active');
+        });
+        pageTitle.textContent = 'Account Settings';
+        
+        // Populate fields
+        if (currentUser) {
+            accountEmail.value = currentUser.email || '';
+            accountName.value = currentUser.displayName || '';
+        }
+    });
+
+    userCard.style.cursor = 'pointer'; // Make it look clickable
+
+    saveAccountBtn.addEventListener('click', async () => {
+        if (!currentUser) return;
+        const originalText = saveAccountBtn.textContent;
+        saveAccountBtn.disabled = true;
+        saveAccountBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+        
+        try {
+            await updateProfile(currentUser, {
+                displayName: accountName.value.trim()
+            });
+            accountStatus.textContent = "Profile updated successfully!";
+            accountStatus.className = "status-msg success";
+            
+            // Instantly update the sidebar name
+            document.getElementById('user-name').textContent = accountName.value.trim() || 'User';
+        } catch (error) {
+            accountStatus.textContent = "Error updating profile: " + error.message;
+            accountStatus.className = "status-msg error";
+        } finally {
+            saveAccountBtn.disabled = false;
+            saveAccountBtn.textContent = originalText;
+            accountStatus.classList.remove('hidden');
+            setTimeout(() => accountStatus.classList.add('hidden'), 3000);
+        }
+    });
+
     // ── Initialize ──
     renderDrugs();
 });
