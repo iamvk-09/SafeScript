@@ -55,7 +55,7 @@ except Exception as e:
     db = None
 
 # ─── App ─────────────────────────────────────────────────────────────────────
-app = FastAPI(title="MedInteract Pro API")
+app = FastAPI(title="SafeScript API")
 
 app.add_middleware(
     CORSMiddleware,

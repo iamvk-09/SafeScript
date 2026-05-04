@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════
-//  MedInteract Pro — script.js
+//  SafeScript — script.js
 //  Firebase Auth + Firestore History + Drug Interaction Engine
 // ════════════════════════════════════════════════════════════════
 
@@ -12,7 +12,8 @@ import {
     signInWithPopup,
     GoogleAuthProvider,
     updateProfile,
-    signOut
+    signOut,
+    sendEmailVerification
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // ── Firebase Config (replace with your config from Firebase Console) ──
@@ -93,10 +94,16 @@ loginForm.addEventListener('submit', async (e) => {
     const btn = document.getElementById('login-btn');
     setButtonLoading(btn, true);
     try {
-        await signInWithEmailAndPassword(auth,
+        const cred = await signInWithEmailAndPassword(auth,
             document.getElementById('login-email').value,
             document.getElementById('login-password').value
         );
+        if (!cred.user.emailVerified) {
+            await signOut(auth);
+            showAuthError(loginError, "Please verify your email address to log in.");
+            setButtonLoading(btn, false);
+            return;
+        }
     } catch (err) {
         showAuthError(loginError, friendlyAuthError(err.code));
         setButtonLoading(btn, false);
@@ -117,6 +124,16 @@ signupForm.addEventListener('submit', async (e) => {
         await updateProfile(cred.user, {
             displayName: document.getElementById('signup-name').value
         });
+        await sendEmailVerification(cred.user);
+        await signOut(auth);
+        
+        signupError.textContent = "Account created! Please verify your email before logging in.";
+        signupError.classList.remove('hidden');
+        signupError.style.color = '#6ee7b7';
+        signupError.style.background = 'var(--success-bg)';
+        signupError.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+        signupForm.reset();
+        setButtonLoading(btn, false);
     } catch (err) {
         showAuthError(signupError, friendlyAuthError(err.code));
         setButtonLoading(btn, false);
@@ -151,6 +168,9 @@ function friendlyAuthError(code) {
 // Auth state observer
 onAuthStateChanged(auth, async (user) => {
     if (user) {
+        if (!user.emailVerified && user.providerData.some(p => p.providerId === 'password')) {
+            return;
+        }
         currentUser = user;
         idToken = await user.getIdToken();
         showApp(user);
@@ -178,7 +198,7 @@ function showApp(user) {
     }
 
     // Load user-specific patient profile
-    const profileKey = `medinteract_profile_${user.uid}`;
+    const profileKey = `safescript_profile_${user.uid}`;
     patientProfile = JSON.parse(localStorage.getItem(profileKey)) || { age: '', conditions: '' };
     
     const profileAge = document.getElementById('profile-age');
@@ -245,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
             views.forEach(v => {
                 v.id === `view-${targetView}` ? v.classList.add('active') : v.classList.remove('active');
             });
-            pageTitle.textContent = pageTitles[targetView] || 'MedInteract Pro';
+            pageTitle.textContent = pageTitles[targetView] || 'SafeScript';
             if (targetView === 'history') loadCloudHistory();
         });
     });
@@ -405,7 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveProfileBtn.addEventListener('click', () => {
         patientProfile = { age: profileAge.value.trim(), conditions: profileConditions.value.trim() };
         if (currentUser) {
-            localStorage.setItem(`medinteract_profile_${currentUser.uid}`, JSON.stringify(patientProfile));
+            localStorage.setItem(`safescript_profile_${currentUser.uid}`, JSON.stringify(patientProfile));
         }
         useProfileToggle.checked = true;
         profileStatus.textContent = "Profile Saved!";

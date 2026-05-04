@@ -370,7 +370,7 @@ h3 i { color: var(--accent); }
     border-color: var(--accent);
 }
 
-input[type="text"], input[type="number"], textarea {
+input[type="text"], input[type="email"], input[type="password"], input[type="number"], textarea {
     flex: 1;
     background: transparent;
     border: none;

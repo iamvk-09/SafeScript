@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════
-//  MedInteract Pro — admin.js
+//  SafeScript — admin.js
 //  Admin Dashboard Logic with Firebase Auth
 // ════════════════════════════════════════════════════════════════
 
