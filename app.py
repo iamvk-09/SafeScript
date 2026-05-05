@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-import pytesseract
+# pytesseract removed in favor of Gemini Vision
 from PIL import Image
 
 load_dotenv()
@@ -349,15 +349,29 @@ Text:
 
 @app.post("/api/upload")
 async def extract_from_image(image: UploadFile = File(...)):
+    key = os.environ.get("GEMINI_API_KEY", "")
+    if not AI_AVAILABLE or not key or key == "your_api_key_here":
+        return {"error": "Gemini AI is required for prescription scanning.", "drugs_detected": []}
     try:
         contents = await image.read()
         pil_image = Image.open(io.BytesIO(contents))
-        text = pytesseract.image_to_string(pil_image)
-        drugs = extract_drugs_from_text(text)
-        return {"text_extracted": text, "drugs_detected": drugs}
-    except pytesseract.TesseractNotFoundError:
-        return {"error": "Tesseract OCR not installed.", "drugs_detected": []}
+        
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        prompt = """You are a highly accurate medical prescription analyzer. Look at this image of a prescription or medication bottle.
+Extract ONLY valid, real-world medication names.
+Return ONLY a comma-separated list of the medication names. If no drugs are found, return exactly "NONE"."""
+        
+        response = model.generate_content([prompt, pil_image])
+        res_text = response.text.strip().replace('`', '').strip()
+        
+        if res_text.upper() == "NONE" or not res_text:
+            drugs = []
+        else:
+            drugs = [d.strip().lower() for d in res_text.split(',') if d.strip()]
+            
+        return {"text_extracted": res_text, "drugs_detected": drugs}
     except Exception as e:
+        print(f"Vision OCR Error: {e}")
         return {"error": "OCR processing failed.", "details": str(e), "drugs_detected": []}
 
 @app.post("/api/extract")
