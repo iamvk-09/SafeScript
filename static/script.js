@@ -162,6 +162,7 @@ function friendlyAuthError(code) {
         'auth/invalid-email': 'Please enter a valid email address.',
         'auth/popup-closed-by-user': 'Sign-in popup was closed.',
         'auth/network-request-failed': 'Network error. Check your connection.',
+        'auth/too-many-requests': 'Too many attempts. Please wait a few minutes and try again.',
     };
     return map[code] || `Authentication failed: ${code || 'Unknown Error'}. Please try again.`;
 }
