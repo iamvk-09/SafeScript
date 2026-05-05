@@ -99,8 +99,9 @@ loginForm.addEventListener('submit', async (e) => {
             document.getElementById('login-password').value
         );
         if (!cred.user.emailVerified) {
+            await sendEmailVerification(cred.user);
             await signOut(auth);
-            showAuthError(loginError, "Please verify your email address to log in.");
+            showAuthError(loginError, "Please verify your email address to log in. A new verification link has been sent to your email.");
             setButtonLoading(btn, false);
             return;
         }
