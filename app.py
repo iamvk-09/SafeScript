@@ -23,8 +23,8 @@ try:
     import google.generativeai as genai
     AI_AVAILABLE = True
     if os.environ.get("GEMINI_API_KEY"):
-        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-    GEMINI_MODEL = "gemini-1.5-flash-latest"
+        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"), transport='rest')
+    GEMINI_MODEL = "gemini-1.5-flash"
 except ImportError:
     AI_AVAILABLE = False
 
@@ -444,30 +444,41 @@ def check_nih_interactions(rxcuis):
 
 def generate_ai_response(prompt, safety_settings=None, use_json=True):
     config = {"response_mime_type": "application/json"} if use_json else None
+    
+    # Priority list of models to try
+    models_to_try = [
+        'gemini-1.5-flash', 
+        'gemini-1.5-flash-latest', 
+        'gemini-1.5-pro', 
+        'gemini-pro'
+    ]
+    
+    last_error = None
+    for model_name in models_to_try:
+        try:
+            print(f"SafeScript: Trying AI model {model_name}...")
+            model = genai.GenerativeModel(model_name, generation_config=config)
+            return model.generate_content(prompt, safety_settings=safety_settings)
+        except Exception as e:
+            last_error = e
+            err_str = str(e).lower()
+            # If it's a 404, just move to the next model immediately
+            if "404" in err_str or "not found" in err_str:
+                continue
+            # If it's a quota error, wait a bit and try next
+            if "429" in err_str or "quota" in err_str:
+                import time
+                time.sleep(1)
+                continue
+            # Other errors: continue to next model
+            continue
+    
+    # Final attempt with basic model and no config
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash-latest', generation_config=config)
-        return model.generate_content(prompt, safety_settings=safety_settings)
+        model = genai.GenerativeModel('gemini-pro')
+        return model.generate_content(prompt)
     except Exception as e:
-        if "429" in str(e) or "quota" in str(e).lower():
-            print("Gemini 2.5 quota exceeded. Trying fallback...")
-            last_err = e
-            try:
-                for m in genai.list_models():
-                    if 'generateContent' in m.supported_generation_methods:
-                        model_name = m.name.replace('models/', '')
-                        if '2.5-flash' in model_name:
-                            continue
-                        try:
-                            print(f"Trying: {model_name}")
-                            model = genai.GenerativeModel(model_name)
-                            return model.generate_content(prompt, safety_settings=safety_settings)
-                        except Exception as inner_e:
-                            last_err = inner_e
-                            continue
-            except Exception as outer_e:
-                print(f"List models failed: {outer_e}")
-            raise Exception(f"All fallback models failed. Last: {str(last_err)}")
-        raise e
+        raise last_error if last_error else e
 
 @app.post("/api/validate_drug")
 async def validate_drug(req: ValidateRequest):
