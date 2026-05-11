@@ -24,6 +24,7 @@ try:
     AI_AVAILABLE = True
     if os.environ.get("GEMINI_API_KEY"):
         genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+    GEMINI_MODEL = "gemini-1.5-flash-latest"
 except ImportError:
     AI_AVAILABLE = False
 
@@ -343,7 +344,7 @@ def extract_drugs_from_text(text: str) -> List[str]:
         words = re.findall(r'\b[a-zA-Z]{5,}\b', text.lower())
         return list(set(words))
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
         prompt = f"""You are a highly accurate medical text extraction AI. Extract ONLY valid, real-world medication names.
 Return ONLY a comma-separated list. If no drugs found, return "NONE".
 
@@ -368,7 +369,7 @@ async def extract_from_image(image: UploadFile = File(...)):
         contents = await image.read()
         pil_image = Image.open(io.BytesIO(contents))
         
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
         prompt = """You are a highly accurate medical prescription analyzer. Look at this image of a prescription or medication bottle.
 Extract ONLY valid, real-world medication names.
 Return ONLY a comma-separated list of the medication names. If no drugs are found, return exactly "NONE"."""
@@ -444,7 +445,7 @@ def check_nih_interactions(rxcuis):
 def generate_ai_response(prompt, safety_settings=None, use_json=True):
     config = {"response_mime_type": "application/json"} if use_json else None
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash', generation_config=config)
+        model = genai.GenerativeModel('gemini-1.5-flash-latest', generation_config=config)
         return model.generate_content(prompt, safety_settings=safety_settings)
     except Exception as e:
         if "429" in str(e) or "quota" in str(e).lower():
