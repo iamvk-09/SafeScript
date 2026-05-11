@@ -115,13 +115,14 @@ async function loadAllHistory() {
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
         const data = await res.json();
+        if (data.error) throw new Error(data.error);
         allHistory = data.history || [];
         renderHistoryTable(allHistory, tbody);
 
         // Recent 10 for overview
         renderHistoryTable(allHistory.slice(0, 10), recentBody);
-    } catch {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#fca5a5;">Failed to load.</td></tr>';
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#fca5a5;">Error: ${err.message || 'Failed to load.'}</td></tr>`;
     }
 }
 
@@ -168,6 +169,7 @@ async function loadTopDrugs() {
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
         const data = await res.json();
+        if (data.error) throw new Error(data.error);
         const drugs = data.top_drugs || [];
         if (drugs.length === 0) {
             container.innerHTML = '<p class="text-muted">No data yet.</p>';
@@ -191,7 +193,7 @@ async function loadTopDrugs() {
             `;
             container.appendChild(div);
         });
-    } catch {
-        container.innerHTML = '<p class="text-muted">Failed to load drug rankings.</p>';
+    } catch (err) {
+        container.innerHTML = `<p style="color:#fca5a5;">Error: ${err.message || 'Failed to load.'}</p>`;
     }
 }

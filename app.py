@@ -34,6 +34,7 @@ try:
 
     _sa_env = os.environ.get("FIREBASE_SERVICE_ACCOUNT", "")
     if _sa_env:
+        _sa_env = _sa_env.strip().strip("'").strip('"')
         sa_dict = json.loads(_sa_env)
         cred = credentials.Certificate(sa_dict)
     else:
@@ -46,9 +47,12 @@ try:
 
     if cred and not firebase_admin._apps:
         firebase_admin.initialize_app(cred)
+        print("SafeScript: Firebase Admin initialized.")
 
     db = firestore.client() if cred else None
     FIREBASE_AVAILABLE = db is not None
+    if FIREBASE_AVAILABLE:
+        print("SafeScript: Firestore client connected.")
 except Exception as e:
     print(f"Firebase init failed: {e}")
     FIREBASE_AVAILABLE = False
@@ -124,7 +128,8 @@ async def verify_token(request: Request):
             "uid": uid,
             "email": user.email,
             "displayName": user.display_name,
-            "photoURL": user.photo_url
+            "photoURL": user.photo_url,
+            "isAdmin": user.email in ADMIN_EMAILS
         }
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
@@ -139,25 +144,28 @@ async def get_history(request: Request):
     if not FIREBASE_AVAILABLE:
         return {"history": []}
     try:
+        # Fetch docs for the user
         docs = (
             db.collection("interaction_history")
             .where("uid", "==", uid)
-            .order_by("timestamp", direction=firestore.Query.DESCENDING)
-            .limit(50)
+            .limit(100)
             .stream()
         )
         history = []
         for doc in docs:
             d = doc.to_dict()
             d["id"] = doc.id
-            # Convert Firestore timestamp to ISO string
             if hasattr(d.get("timestamp"), "isoformat"):
                 d["timestamp"] = d["timestamp"].isoformat()
             history.append(d)
-        return {"history": history}
+        
+        # Sort in memory to avoid requiring a composite index (uid + timestamp)
+        # Firestore composite indexes take time to build and can be a hurdle for new setups.
+        history.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        return {"history": history[:50]}
     except Exception as e:
         print(f"History fetch error: {e}")
-        return {"history": []}
+        return {"history": [], "error": str(e)}
 
 @app.post("/api/history/save")
 async def save_history(req: SaveHistoryRequest, request: Request):
@@ -166,23 +174,27 @@ async def save_history(req: SaveHistoryRequest, request: Request):
     if not uid or uid != req.uid:
         raise HTTPException(status_code=401, detail="Unauthorized")
     if not FIREBASE_AVAILABLE:
-        return {"saved": False}
+        return {"saved": False, "error": "Firebase not initialized on server.", "firebase_available": False}
     try:
         doc_ref = db.collection("interaction_history").document()
-        doc_ref.set({
+        save_data = {
             "uid": uid,
             "drugs": req.drugs,
             "interactions_count": req.interactions_count,
             "severity": req.severity,
             "ai_report_summary": req.ai_report_summary[:500] if req.ai_report_summary else "",
             "timestamp": datetime.now(timezone.utc)
-        })
+        }
+        print(f"SafeScript: Attempting to save history for UID {uid}: {save_data}")
+        doc_ref.set(save_data)
         # Update global stats
         _increment_stats(req.drugs, req.interactions_count, req.severity)
         return {"saved": True, "id": doc_ref.id}
     except Exception as e:
-        print(f"Save history error: {e}")
-        return {"saved": False, "error": str(e)}
+        import traceback
+        err_detail = traceback.format_exc()
+        print(f"Save history error: {err_detail}")
+        return {"saved": False, "error": str(e), "details": err_detail}
 
 @app.delete("/api/history/{doc_id}")
 async def delete_history_item(doc_id: str, request: Request):
@@ -243,9 +255,9 @@ async def get_admin_stats(request: Request):
         if "last_updated" in stats and hasattr(stats["last_updated"], "isoformat"):
             stats["last_updated"] = stats["last_updated"].isoformat()
 
-        # Count unique users
-        user_count_query = db.collection("interaction_history").stream()
-        uids = set(d.to_dict().get("uid") for d in user_count_query)
+        # Efficiently count unique users using a projection
+        user_docs = db.collection("interaction_history").select(["uid"]).stream()
+        uids = set(d.to_dict().get("uid") for d in user_docs)
         stats["total_users"] = len(uids)
 
         return {"stats": stats}
@@ -285,7 +297,7 @@ async def get_top_drugs(request: Request):
     if not FIREBASE_AVAILABLE:
         return {"top_drugs": []}
     try:
-        docs = db.collection("interaction_history").stream()
+        docs = db.collection("interaction_history").select(["drugs"]).stream()
         drug_counts = {}
         for doc in docs:
             for drug in doc.to_dict().get("drugs", []):
@@ -331,7 +343,7 @@ def extract_drugs_from_text(text: str) -> List[str]:
         words = re.findall(r'\b[a-zA-Z]{5,}\b', text.lower())
         return list(set(words))
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""You are a highly accurate medical text extraction AI. Extract ONLY valid, real-world medication names.
 Return ONLY a comma-separated list. If no drugs found, return "NONE".
 
@@ -356,7 +368,7 @@ async def extract_from_image(image: UploadFile = File(...)):
         contents = await image.read()
         pil_image = Image.open(io.BytesIO(contents))
         
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = """You are a highly accurate medical prescription analyzer. Look at this image of a prescription or medication bottle.
 Extract ONLY valid, real-world medication names.
 Return ONLY a comma-separated list of the medication names. If no drugs are found, return exactly "NONE"."""
@@ -432,7 +444,7 @@ def check_nih_interactions(rxcuis):
 def generate_ai_response(prompt, safety_settings=None, use_json=True):
     config = {"response_mime_type": "application/json"} if use_json else None
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash', generation_config=config)
+        model = genai.GenerativeModel('gemini-1.5-flash', generation_config=config)
         return model.generate_content(prompt, safety_settings=safety_settings)
     except Exception as e:
         if "429" in str(e) or "quota" in str(e).lower():

@@ -176,7 +176,7 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = user;
         idToken = await user.getIdToken();
         showApp(user);
-        loadCloudHistory();
+        if (window.loadCloudHistory) window.loadCloudHistory();
     } else {
         currentUser = null;
         idToken = null;
@@ -193,10 +193,19 @@ function showApp(user) {
         userAvatar.innerHTML = `<img src="${user.photoURL}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
     }
     
-    // Show admin link if user is admin
-    if (user.email === 'vk.projects.01@gmail.com') {
-        const adminLink = document.getElementById('admin-nav-link');
-        if (adminLink) adminLink.style.display = 'flex';
+    // Show admin link if user is admin via backend check
+    try {
+        const token = await getToken();
+        const res = await fetch('/api/auth/verify', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.isAdmin) {
+            const adminLink = document.getElementById('admin-nav-link');
+            if (adminLink) adminLink.style.display = 'flex';
+        }
+    } catch (e) {
+        console.error("Admin check failed", e);
     }
 
     // Load user-specific patient profile
@@ -268,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 v.id === `view-${targetView}` ? v.classList.add('active') : v.classList.remove('active');
             });
             pageTitle.textContent = pageTitles[targetView] || 'SafeScript';
-            if (targetView === 'history') loadCloudHistory();
+            if (targetView === 'history' && window.loadCloudHistory) window.loadCloudHistory();
         });
     });
 
@@ -523,8 +532,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.ai_report) {
                 const aiDiv = document.createElement('div');
                 aiDiv.className = 'ai-report';
-                let fmt = data.ai_report.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                fmt = fmt.replace(/\n/g, '<br>');
+                
+                // Enhanced simple markdown parser
+                let fmt = data.ai_report;
+                fmt = fmt.replace(/### (.*?)\n/g, '<h5>$1</h5>'); // Headers
+                fmt = fmt.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // Bold
+                fmt = fmt.replace(/^\* (.*?)$/gm, '<li>$1</li>'); // Bullets
+                fmt = fmt.replace(/\n/g, '<br>'); // Line breaks
+                
+                // Wrap lists
+                if (fmt.includes('<li>')) {
+                    fmt = fmt.replace(/(<li>.*?<\/li>)/gs, '<ul class="ai-list">$1</ul>');
+                }
+
                 aiDiv.innerHTML = `
                     <h4><i class="fa-solid fa-robot"></i> AI Safety Report</h4>
                     <div class="ai-content">${fmt}</div>`;
@@ -629,7 +649,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    document.getElementById('refresh-history-btn').addEventListener('click', () => loadCloudHistory());
+    document.getElementById('refresh-history-btn').addEventListener('click', () => {
+        if (window.loadCloudHistory) window.loadCloudHistory();
+    });
 
     document.getElementById('clear-history-btn').addEventListener('click', async () => {
         if (!confirm('Delete all your history? This cannot be undone.')) return;
@@ -654,7 +676,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!token || !currentUser) return;
         setSyncStatus('syncing');
         try {
-            await fetch('/api/history/save', {
+            const response = await fetch('/api/history/save', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -668,11 +690,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     ai_report_summary: aiReport.substring(0, 500)
                 })
             });
-            setSyncStatus('synced');
-            const badge = document.getElementById('history-count-badge');
-            const current = parseInt(badge.textContent) || 0;
-            badge.textContent = current + 1;
-        } catch {
+            const result = await response.json();
+            if (result.saved) {
+                console.log("SafeScript: History saved successfully. ID:", result.id);
+                setSyncStatus('synced');
+                const badge = document.getElementById('history-count-badge');
+                if (badge) {
+                    const current = parseInt(badge.textContent) || 0;
+                    badge.textContent = current + 1;
+                }
+            } else {
+                console.error("SafeScript: Server failed to save history.", result.error, result.details);
+                setSyncStatus('error');
+            }
+        } catch (err) {
+            console.error("SafeScript: Save network error.", err);
             setSyncStatus('error');
         }
     }

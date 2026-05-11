@@ -1148,3 +1148,89 @@ input:checked + .slider:before { transform: translateX(20px); background-color: 
     body { background: white; }
     .ai-content, .card-desc { color: black; }
 }
+/* ══════════════════════════════════════════
+   PRINT STYLES
+══════════════════════════════════════════ */
+@media print {
+    .sidebar, .top-header, .input-column, .sync-indicator, .action-btn, .nav-menu, .user-card, .logout-btn, #print-btn, .clear-btn, .tab-btns, .input-tabs {
+        display: none !important;
+    }
+    
+    body {
+        background: white !important;
+        color: black !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+    
+    .app-container {
+        display: block !important;
+        width: 100% !important;
+    }
+    
+    .main-content {
+        display: block !important;
+        padding: 0 !important;
+    }
+    
+    .views-container {
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+    
+    .glass-card {
+        background: white !important;
+        border: 1px solid #ddd !important;
+        box-shadow: none !important;
+        color: black !important;
+        backdrop-filter: none !important;
+    }
+    
+    .dashboard-grid {
+        display: block !important;
+    }
+    
+    .results-column {
+        width: 100% !important;
+    }
+    
+    .interaction-card {
+        border: 1px solid #eee !important;
+        break-inside: avoid;
+        background: white !important;
+    }
+    
+    .ai-report {
+        border: 1px solid #6366f1 !important;
+        background: #f8fafc !important;
+        color: black !important;
+    }
+    
+    .ai-content { color: black !important; }
+    .ai-content strong { color: black !important; }
+
+    .brand-icon {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* Header for print */
+    .view.active::before {
+        content: "SafeScript AI — Medical Safety Report";
+        display: block;
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid #6366f1;
+        padding-bottom: 0.5rem;
+    }
+    
+    .view.active::after {
+        content: "Generated on: " counter(page) " | Disclaimer: This AI-generated report is for informational purposes only. Always consult a healthcare professional.";
+        display: block;
+        font-size: 0.8rem;
+        margin-top: 2rem;
+        color: #666;
+        text-align: center;
+    }
+}
