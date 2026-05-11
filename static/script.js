@@ -184,7 +184,7 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-function showApp(user) {
+async function showApp(user) {
     authOverlay.style.display = 'none';
     appContainer.style.display = 'flex';
     userName.textContent = user.displayName || 'User';
