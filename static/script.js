@@ -88,30 +88,41 @@ function setButtonLoading(btn, loading) {
 // Login
 loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    loginError.classList.add('hidden');
-    const btn = document.getElementById('login-btn');
+    const statusEl = document.getElementById('auth-status-login');
     setButtonLoading(btn, true);
+    statusEl.textContent = 'Connecting to Secure Server...';
 
     // Safety timeout to reset button if things hang
-    const timeout = setTimeout(() => setButtonLoading(btn, false), 10000);
+    const timeout = setTimeout(() => {
+        setButtonLoading(btn, false);
+        statusEl.textContent = 'Connection timeout. Please check your internet and try again.';
+    }, 15000);
 
     try {
+        statusEl.textContent = 'Verifying credentials...';
         const cred = await signInWithEmailAndPassword(auth,
             document.getElementById('login-email').value,
             document.getElementById('login-password').value
         );
         clearTimeout(timeout);
+        statusEl.textContent = 'Identity verified. Checking security...';
+
         if (!cred.user.emailVerified) {
+            statusEl.textContent = 'Email verification required.';
             await sendEmailVerification(cred.user);
             await signOut(auth);
             showAuthError(loginError, "Please verify your email address to log in. A new verification link has been sent to your email.");
             setButtonLoading(btn, false);
+            statusEl.textContent = '';
             return;
         }
+        statusEl.textContent = 'Access granted. Opening dashboard...';
     } catch (err) {
         clearTimeout(timeout);
+        console.error("Login Error:", err);
         showAuthError(loginError, friendlyAuthError(err.code));
         setButtonLoading(btn, false);
+        statusEl.textContent = '';
     }
 });
 
