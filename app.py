@@ -261,6 +261,13 @@ async def get_admin_stats(request: Request):
         uids = set(d.to_dict().get("uid") for d in user_docs)
         stats["total_users"] = len(uids)
 
+        # Cache hit potential (count of cached items)
+        cache_docs = db.collection("ai_cache").stream()
+        stats["cache_size"] = sum(1 for _ in cache_docs)
+        
+        stats["ai_available"] = AI_AVAILABLE
+        stats["db_connected"] = FIREBASE_AVAILABLE
+
         return {"stats": stats}
     except Exception as e:
         return {"stats": {}, "error": str(e)}

@@ -1234,3 +1234,75 @@ input:checked + .slider:before { transform: translateX(20px); background-color: 
         text-align: center;
     }
 }
+
+/* ══════════════════════════════════════════
+   NEW ADMIN DASHBOARD GRID
+══════════════════════════════════════════ */
+.admin-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.health-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    margin-top: 1rem;
+}
+
+.health-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.health-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+}
+
+.health-label { color: var(--text-muted); }
+.health-status { font-weight: 600; display: flex; align-items: center; gap: 0.4rem; }
+.status-online { color: var(--success); }
+.status-online i { font-size: 0.5rem; }
+
+.health-bar-bg {
+    height: 4px;
+    background: var(--input-bg);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.health-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+}
+
+.ai-monitor-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.monitor-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.text-white { color: white; }
+
+@media (max-width: 1400px) {
+    .admin-grid { grid-template-columns: 1fr; }
+    .stats-sidebar { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+}
+

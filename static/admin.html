@@ -65,67 +65,117 @@
 
             <!-- ── Overview View ── -->
             <div class="view active" id="view-overview">
+                
+                <div class="admin-grid">
+                    <div class="stats-main">
+                        <!-- Stats Cards -->
+                        <div class="stats-grid" id="stats-grid">
+                            <div class="stat-card glass-card">
+                                <div class="stat-icon" style="background: linear-gradient(135deg,#6366f1,#8b5cf6);">
+                                    <i class="fa-solid fa-magnifying-glass-chart"></i>
+                                </div>
+                                <div class="stat-info">
+                                    <p>Total Checks</p>
+                                    <h2 id="stat-total-checks">—</h2>
+                                </div>
+                            </div>
+                            <div class="stat-card glass-card">
+                                <div class="stat-icon" style="background: linear-gradient(135deg,#f43f5e,#e11d48);">
+                                    <i class="fa-solid fa-triangle-exclamation"></i>
+                                </div>
+                                <div class="stat-info">
+                                    <p>Severe Caught</p>
+                                    <h2 id="stat-severe">—</h2>
+                                </div>
+                            </div>
+                            <div class="stat-card glass-card">
+                                <div class="stat-icon" style="background: linear-gradient(135deg,#10b981,#059669);">
+                                    <i class="fa-solid fa-users"></i>
+                                </div>
+                                <div class="stat-info">
+                                    <p>Unique Users</p>
+                                    <h2 id="stat-users">—</h2>
+                                </div>
+                            </div>
+                            <div class="stat-card glass-card">
+                                <div class="stat-icon" style="background: linear-gradient(135deg,#f59e0b,#d97706);">
+                                    <i class="fa-solid fa-link-slash"></i>
+                                </div>
+                                <div class="stat-info">
+                                    <p>Interactions</p>
+                                    <h2 id="stat-interactions">—</h2>
+                                </div>
+                            </div>
+                        </div>
 
-                <!-- Stats Cards -->
-                <div class="stats-grid" id="stats-grid">
-                    <div class="stat-card glass-card">
-                        <div class="stat-icon" style="background: linear-gradient(135deg,#6366f1,#8b5cf6);">
-                            <i class="fa-solid fa-magnifying-glass-chart"></i>
-                        </div>
-                        <div class="stat-info">
-                            <p>Total Checks</p>
-                            <h2 id="stat-total-checks">—</h2>
-                        </div>
-                    </div>
-                    <div class="stat-card glass-card">
-                        <div class="stat-icon" style="background: linear-gradient(135deg,#f43f5e,#e11d48);">
-                            <i class="fa-solid fa-triangle-exclamation"></i>
-                        </div>
-                        <div class="stat-info">
-                            <p>Severe Caught</p>
-                            <h2 id="stat-severe">—</h2>
-                        </div>
-                    </div>
-                    <div class="stat-card glass-card">
-                        <div class="stat-icon" style="background: linear-gradient(135deg,#10b981,#059669);">
-                            <i class="fa-solid fa-users"></i>
-                        </div>
-                        <div class="stat-info">
-                            <p>Unique Users</p>
-                            <h2 id="stat-users">—</h2>
+                        <!-- Recent Activity Table -->
+                        <div class="glass-card mt-4">
+                            <div class="flex-between mb-4">
+                                <h3><i class="fa-solid fa-clock-rotate-left"></i> Recent Activity</h3>
+                                <button class="text-btn" onclick="document.querySelector('[data-view=all-history]').click()">View All</button>
+                            </div>
+                            <div class="table-wrap">
+                                <table class="admin-table" id="recent-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Drugs Checked</th>
+                                            <th>Interactions</th>
+                                            <th>Severity</th>
+                                            <th>Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recent-table-body">
+                                        <tr><td colspan="4" style="text-align:center;opacity:.5;">Loading...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
-                    <div class="stat-card glass-card">
-                        <div class="stat-icon" style="background: linear-gradient(135deg,#f59e0b,#d97706);">
-                            <i class="fa-solid fa-link-slash"></i>
-                        </div>
-                        <div class="stat-info">
-                            <p>Interactions Found</p>
-                            <h2 id="stat-interactions">—</h2>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Recent Activity Table -->
-                <div class="glass-card mt-4">
-                    <div class="flex-between mb-4">
-                        <h3><i class="fa-solid fa-clock-rotate-left"></i> Recent Activity (Last 10)</h3>
-                    </div>
-                    <div class="table-wrap">
-                        <table class="admin-table" id="recent-table">
-                            <thead>
-                                <tr>
-                                    <th>Drugs Checked</th>
-                                    <th>Interactions</th>
-                                    <th>Severity</th>
-                                    <th>Time</th>
-                                    <th>User ID</th>
-                                </tr>
-                            </thead>
-                            <tbody id="recent-table-body">
-                                <tr><td colspan="5" style="text-align:center;opacity:.5;">Loading...</td></tr>
-                            </tbody>
-                        </table>
+                    <div class="stats-sidebar">
+                        <!-- System Health -->
+                        <div class="glass-card full-height">
+                            <h3><i class="fa-solid fa-heart-pulse"></i> System Health</h3>
+                            <div class="health-list">
+                                <div class="health-item">
+                                    <div class="health-info">
+                                        <span class="health-label">Gemini AI (3.1 Flash)</span>
+                                        <span class="health-status status-online" id="health-ai"><i class="fa-solid fa-circle"></i> Online</span>
+                                    </div>
+                                    <div class="health-bar-bg"><div class="health-bar" style="width: 100%"></div></div>
+                                </div>
+                                <div class="health-item">
+                                    <div class="health-info">
+                                        <span class="health-label">Firestore Database</span>
+                                        <span class="health-status status-online" id="health-db"><i class="fa-solid fa-circle"></i> Connected</span>
+                                    </div>
+                                    <div class="health-bar-bg"><div class="health-bar" style="width: 100%"></div></div>
+                                </div>
+                                <div class="health-item">
+                                    <div class="health-info">
+                                        <span class="health-label">API Latency</span>
+                                        <span class="health-status" id="health-latency">240ms</span>
+                                    </div>
+                                    <div class="health-bar-bg"><div class="health-bar" style="width: 85%; background: var(--success);"></div></div>
+                                </div>
+                            </div>
+
+                            <h3 class="mt-4"><i class="fa-solid fa-microchip"></i> AI Monitor</h3>
+                            <div class="ai-monitor-card">
+                                <div class="monitor-row">
+                                    <span>Model</span>
+                                    <span class="text-white">Gemini 3.1</span>
+                                </div>
+                                <div class="monitor-row">
+                                    <span>Cache Hits</span>
+                                    <span class="text-white" id="cache-hit-count">12</span>
+                                </div>
+                                <div class="monitor-row">
+                                    <span>Quota Usage</span>
+                                    <span class="text-white">Low</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
