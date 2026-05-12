@@ -356,15 +356,24 @@ h3 i { color: var(--accent); }
 .tab-content { display: none; }
 .tab-content.active { display: block; animation: fadeIn 0.3s; }
 
-/* Input */
+/* Input Row */
+.input-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
 .input-wrapper {
     display: flex;
     background: var(--input-bg);
     border: 1px solid var(--panel-border);
     border-radius: 12px;
-    padding: 0.4rem;
+    padding: 0.2rem;
     transition: border-color 0.3s;
 }
+
+.main-input { flex: 2; }
+.dosage-input { flex: 1; }
 
 .input-wrapper:focus-within {
     border-color: var(--accent);
@@ -488,13 +497,28 @@ input[type="text"], input[type="email"], input[type="password"], input[type="num
     background: rgba(99, 102, 241, 0.15);
     border: 1px solid rgba(99, 102, 241, 0.3);
     color: #a5b4fc;
-    padding: 0.3rem 0.8rem;
-    border-radius: 20px;
-    font-size: 0.85rem;
+    padding: 0.4rem 1rem;
+    border-radius: 12px;
+    font-size: 0.9rem;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    justify-content: space-between;
+    gap: 1rem;
     animation: scaleIn 0.2s;
+    min-width: 150px;
+}
+
+.drug-name-tag {
+    font-weight: 700;
+    display: block;
+    color: #fff;
+}
+
+.dosage-tag {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    display: block;
+    color: var(--accent);
 }
 
 .drug-tag button {
@@ -502,10 +526,12 @@ input[type="text"], input[type="email"], input[type="password"], input[type="num
     border: none;
     color: inherit;
     cursor: pointer;
-    opacity: 0.7;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+    padding: 0.2rem;
 }
 
-.drug-tag button:hover { opacity: 1; }
+.drug-tag button:hover { opacity: 1; color: var(--danger); }
 
 /* Toggle Switch */
 .profile-toggle {

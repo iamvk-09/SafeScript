@@ -32,9 +32,7 @@ const auth = getAuth(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
 
 // ── State ──
-let currentUser = null;
-let idToken = null;
-let selectedDrugs = new Set();
+let selectedDrugs = []; // Array of { name: string, dosage: string }
 let cloudHistory = [];
 let patientProfile = { age: '', conditions: '' };
 
@@ -305,24 +303,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderDrugs = () => {
         drugsList.innerHTML = '';
-        selectedDrugs.forEach(drug => {
+        selectedDrugs.forEach((drug, index) => {
             const tag = document.createElement('div');
             tag.className = 'drug-tag';
-            tag.innerHTML = `<span>${drug.charAt(0).toUpperCase() + drug.slice(1)}</span>
+            tag.innerHTML = `<div>
+                                <span class="drug-name-tag">${drug.name.charAt(0).toUpperCase() + drug.name.slice(1)}</span>
+                                <span class="dosage-tag">${drug.dosage || ''}</span>
+                             </div>
                              <button aria-label="Remove"><i class="fa-solid fa-xmark"></i></button>`;
             tag.querySelector('button').addEventListener('click', () => {
-                selectedDrugs.delete(drug);
+                selectedDrugs.splice(index, 1);
                 renderDrugs();
             });
             drugsList.appendChild(tag);
         });
-        drugCount.textContent = selectedDrugs.size;
-        checkBtn.disabled = selectedDrugs.size < 2;
+        drugCount.textContent = selectedDrugs.length;
+        checkBtn.disabled = selectedDrugs.length < 2;
     };
 
     const addDrug = async () => {
-        const val = drugInput.value.trim().toLowerCase();
-        if (!val || selectedDrugs.has(val)) return;
+        const nameVal = drugInput.value.trim().toLowerCase();
+        const dosageVal = document.getElementById('dosage-input').value.trim();
+        
+        if (!nameVal) return;
+        if (selectedDrugs.some(d => d.name === nameVal && d.dosage === dosageVal)) return;
 
         const originalIcon = addDrugBtn.innerHTML;
         addDrugBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
@@ -334,7 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/validate_drug', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ drug: val })
+                body: JSON.stringify({ drug: nameVal })
             });
             const data = await response.json();
             if (!data.valid) {
@@ -348,31 +352,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     suggHtml = `<span class="sugg-title" style="color:#fca5a5;"><i class="fa-solid fa-triangle-exclamation"></i> Unrecognized medication.</span>`;
                 }
-                suggHtml += `<button class="sugg-ignore">Add "${val}" anyway</button>`;
+                suggHtml += `<button class="sugg-ignore">Add "${nameVal}" anyway</button>`;
                 drugSuggestions.innerHTML = suggHtml;
                 drugSuggestions.querySelectorAll('.sugg-pill').forEach(pill => {
                     pill.addEventListener('click', () => {
                         const correctVal = pill.textContent.toLowerCase();
-                        if (!selectedDrugs.has(correctVal)) { selectedDrugs.add(correctVal); renderDrugs(); }
+                        selectedDrugs.push({ name: correctVal, dosage: dosageVal });
+                        renderDrugs();
                         drugInput.value = '';
+                        document.getElementById('dosage-input').value = '';
                         drugSuggestions.classList.add('hidden');
                     });
                 });
                 drugSuggestions.querySelector('.sugg-ignore').addEventListener('click', () => {
-                    selectedDrugs.add(val);
+                    selectedDrugs.push({ name: nameVal, dosage: dosageVal });
                     renderDrugs();
                     drugInput.value = '';
+                    document.getElementById('dosage-input').value = '';
                     drugSuggestions.classList.add('hidden');
                 });
             } else {
-                selectedDrugs.add(val);
+                selectedDrugs.push({ name: nameVal, dosage: dosageVal });
                 renderDrugs();
                 drugInput.value = '';
+                document.getElementById('dosage-input').value = '';
             }
         } catch {
-            selectedDrugs.add(val);
+            selectedDrugs.push({ name: nameVal, dosage: dosageVal });
             renderDrugs();
             drugInput.value = '';
+            document.getElementById('dosage-input').value = '';
         } finally {
             addDrugBtn.innerHTML = originalIcon;
             addDrugBtn.disabled = false;
@@ -380,8 +389,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     addDrugBtn.addEventListener('click', addDrug);
-    drugInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); addDrug(); } });
-    clearBtn.addEventListener('click', () => { selectedDrugs.clear(); renderDrugs(); resetResults(); });
+    drugInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('dosage-input').focus(); } });
+    document.getElementById('dosage-input').addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); addDrug(); } });
+    clearBtn.addEventListener('click', () => { selectedDrugs = []; renderDrugs(); resetResults(); });
 
     // ── File Upload ──
     const dropZone    = document.getElementById('drop-zone');
@@ -399,7 +409,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (data.error) throw new Error(data.error);
             if (data.drugs_detected && data.drugs_detected.length > 0) {
-                data.drugs_detected.forEach(d => selectedDrugs.add(d.toLowerCase()));
+                data.drugs_detected.forEach(d => {
+                    if (!selectedDrugs.some(sd => sd.name === d.toLowerCase())) {
+                        selectedDrugs.push({ name: d.toLowerCase(), dosage: '' });
+                    }
+                });
                 renderDrugs();
                 uploadStatus.className = 'status-msg success';
                 uploadStatus.textContent = `Scanned ${data.drugs_detected.length} medicines.`;
@@ -466,12 +480,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     checkBtn.addEventListener('click', async () => {
-        if (selectedDrugs.size < 2) return;
+        if (selectedDrugs.length < 2) return;
         resultsContent.innerHTML = '';
         loader.classList.remove('hidden');
         interactionSummary.textContent = 'Analyzing...';
 
-        const payload = { drugs: Array.from(selectedDrugs) };
+        const payload = { drugs: selectedDrugs };
         if (useProfileToggle.checked && (patientProfile.age || patientProfile.conditions)) {
             payload.patient_age = parseInt(patientProfile.age) || null;
             payload.patient_conditions = patientProfile.conditions || null;
@@ -555,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const topSeverity = data.interactions && data.interactions.length > 0
                 ? (data.interactions.find(i => i.severity === 'Severe')?.severity || data.interactions[0].severity)
                 : 'None';
-            await saveToCloud(Array.from(selectedDrugs), data.interactions?.length || 0, topSeverity, data.ai_report || '');
+            await saveToCloud(selectedDrugs.map(d => `${d.name} (${d.dosage || 'no dosage'})`), data.interactions?.length || 0, topSeverity, data.ai_report || '');
 
         } catch (error) {
             loader.classList.add('hidden');
@@ -622,7 +636,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             card.addEventListener('click', (e) => {
                 if (e.target.closest('.delete-hist-btn')) return;
-                selectedDrugs = new Set(item.drugs || []);
+                selectedDrugs = (item.drugs || []).map(d => {
+                    const parts = d.match(/^(.*?) \((.*?)\)$/);
+                    return parts ? { name: parts[1], dosage: parts[2] } : { name: d, dosage: '' };
+                });
                 renderDrugs();
                 document.querySelector('[data-view="dashboard"]').click();
                 setTimeout(() => checkBtn.click(), 300);

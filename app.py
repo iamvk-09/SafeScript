@@ -77,8 +77,12 @@ os.makedirs(static_path, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 # ─── Pydantic Models ─────────────────────────────────────────────────────────
+class DrugEntry(BaseModel):
+    name: str
+    dosage: Optional[str] = None
+
 class CheckRequest(BaseModel):
-    drugs: List[str]
+    drugs: List[DrugEntry]
     patient_age: Optional[int] = None
     patient_conditions: Optional[str] = None
 
@@ -549,14 +553,11 @@ Return ONLY valid JSON."""
 
 @app.post("/api/check")
 async def check_interactions(req: CheckRequest):
-    input_drugs = [d.lower().strip() for d in req.drugs if d.strip()]
-    if len(input_drugs) < 2:
+    if len(req.drugs) < 2:
         return {"interactions": [], "message": "Need at least two drugs."}
-
-    key = os.environ.get("GEMINI_API_KEY", "")
-
-    # Check AI cache first
-    cache_key = "+".join(sorted(input_drugs))
+    
+    input_drugs = [d.name.lower().strip() for d in req.drugs]
+    cache_key = "+".join(sorted([f"{d.name.lower()}:{d.dosage.lower() if d.dosage else ''}" for d in req.drugs]))
     cached = _get_cached(cache_key)
     if cached:
         cached["from_cache"] = True
@@ -570,7 +571,8 @@ async def check_interactions(req: CheckRequest):
                 if req.patient_age: patient_context += f"- Age: {req.patient_age}\n"
                 if req.patient_conditions: patient_context += f"- Conditions: {req.patient_conditions}\n"
 
-            prompt = f"""You are a highly knowledgeable medical AI assistant. Check drug interactions between: {', '.join(input_drugs)}.
+            drug_list_str = ", ".join([f"{d.name} ({d.dosage if d.dosage else 'dosage not specified'})" for d in req.drugs])
+            prompt = f"""You are a highly knowledgeable medical AI assistant. Check drug interactions between: {drug_list_str}.
 {patient_context}
 
 Return a strictly valid JSON object:
@@ -579,11 +581,11 @@ Return a strictly valid JSON object:
         {{
             "drugs": ["drug1", "drug2"],
             "severity": "Severe",
-            "description": "Short explanation.",
+            "description": "Short explanation including how the specific dosages might affect the interaction.",
             "source": "AI Medical Analysis"
         }}
     ],
-    "ai_report": "Detailed markdown safety report with disclaimer."
+    "ai_report": "Detailed markdown safety report. IMPORTANT: Analyze how the provided dosages (e.g. 500mg vs 10mg) impact the risk or severity. Include a clear medical disclaimer."
 }}
 
 Rules:

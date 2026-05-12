@@ -138,8 +138,13 @@
                             </div>
 
                             <div class="tab-content active" id="manual">
-                                <div class="input-wrapper">
-                                    <input type="text" id="drug-input" placeholder="e.g. Aspirin, Metformin..." autocomplete="off">
+                                <div class="input-row">
+                                    <div class="input-wrapper main-input">
+                                        <input type="text" id="drug-input" placeholder="Drug Name (e.g. Aspirin)" autocomplete="off">
+                                    </div>
+                                    <div class="input-wrapper dosage-input">
+                                        <input type="text" id="dosage-input" placeholder="Dosage (e.g. 500mg)" autocomplete="off">
+                                    </div>
                                     <button id="add-drug-btn"><i class="fa-solid fa-plus"></i></button>
                                 </div>
                                 <div id="drug-suggestions" class="suggestions-container hidden"></div>
