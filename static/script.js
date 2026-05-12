@@ -91,11 +91,16 @@ loginForm.addEventListener('submit', async (e) => {
     loginError.classList.add('hidden');
     const btn = document.getElementById('login-btn');
     setButtonLoading(btn, true);
+
+    // Safety timeout to reset button if things hang
+    const timeout = setTimeout(() => setButtonLoading(btn, false), 10000);
+
     try {
         const cred = await signInWithEmailAndPassword(auth,
             document.getElementById('login-email').value,
             document.getElementById('login-password').value
         );
+        clearTimeout(timeout);
         if (!cred.user.emailVerified) {
             await sendEmailVerification(cred.user);
             await signOut(auth);
@@ -104,6 +109,7 @@ loginForm.addEventListener('submit', async (e) => {
             return;
         }
     } catch (err) {
+        clearTimeout(timeout);
         showAuthError(loginError, friendlyAuthError(err.code));
         setButtonLoading(btn, false);
     }
@@ -166,15 +172,21 @@ function friendlyAuthError(code) {
 }
 
 // Auth state observer
-onAuthStateChanged(auth, async (user) => {
+onAuthStateChanged(auth, (user) => {
     if (user) {
+        // If password user but not verified, only allow if they are in the middle of login
         if (!user.emailVerified && user.providerData.some(p => p.providerId === 'password')) {
             return;
         }
         currentUser = user;
-        idToken = await user.getIdToken();
+        // SHOW APP IMMEDIATELY
         showApp(user);
-        if (window.loadCloudHistory) window.loadCloudHistory();
+        
+        // Background tasks
+        user.getIdToken().then(token => {
+            idToken = token;
+            if (window.loadCloudHistory) window.loadCloudHistory();
+        }).catch(err => console.error("Background token fetch failed", err));
     } else {
         currentUser = null;
         idToken = null;
@@ -183,28 +195,18 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 async function showApp(user) {
+    // Hide overlay immediately to prevent "Please wait" hangs
     authOverlay.style.display = 'none';
     appContainer.style.display = 'flex';
+
     userName.textContent = user.displayName || 'User';
     userEmail.textContent = user.email || '';
     if (user.photoURL) {
         userAvatar.innerHTML = `<img src="${user.photoURL}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
     }
     
-    // Show admin link if user is admin via backend check
-    try {
-        const token = await getToken();
-        const res = await fetch('/api/auth/verify', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await res.json();
-        if (data.isAdmin) {
-            const adminLink = document.getElementById('admin-nav-link');
-            if (adminLink) adminLink.style.display = 'flex';
-        }
-    } catch (e) {
-        console.error("Admin check failed", e);
-    }
+    // Background Admin Check
+    checkAdminStatus(user);
 
     // Load user-specific patient profile
     const profileKey = `safescript_profile_${user.uid}`;
@@ -216,6 +218,22 @@ async function showApp(user) {
     if (profileAge) profileAge.value = patientProfile.age || '';
     if (profileConditions) profileConditions.value = patientProfile.conditions || '';
     if (useProfileToggle) useProfileToggle.checked = !!(patientProfile.age || patientProfile.conditions);
+}
+
+async function checkAdminStatus(user) {
+    try {
+        const token = await user.getIdToken();
+        const res = await fetch('/api/auth/verify', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.isAdmin) {
+            const adminLink = document.getElementById('admin-nav-link');
+            if (adminLink) adminLink.style.display = 'flex';
+        }
+    } catch (e) {
+        console.warn("Admin check skipped or failed", e);
+    }
 }
 
 function showAuth() {
