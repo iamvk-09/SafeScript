@@ -117,7 +117,7 @@ def read_admin():
     return FileResponse(os.path.join(static_path, "admin.html"))
 
 # ─── Auth Verify ─────────────────────────────────────────────────────────────
-@app.post("/api/auth/verify")
+@app.get("/api/auth/verify")
 async def verify_token(request: Request):
     """Verify Firebase ID token and return user info."""
     uid = get_uid_from_token(request)
