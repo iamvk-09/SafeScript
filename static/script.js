@@ -88,6 +88,7 @@ function setButtonLoading(btn, loading) {
 // Login
 loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = document.getElementById('login-btn');
     const statusEl = document.getElementById('auth-status-login');
     setButtonLoading(btn, true);
     statusEl.textContent = 'Connecting to Secure Server...';
