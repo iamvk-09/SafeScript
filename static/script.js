@@ -208,6 +208,7 @@ onAuthStateChanged(auth, (user) => {
 });
 
 async function showApp(user) {
+    currentUser = user;
     // Hide overlay immediately to prevent "Please wait" hangs
     authOverlay.style.display = 'none';
     appContainer.style.display = 'flex';
