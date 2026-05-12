@@ -118,6 +118,7 @@ loginForm.addEventListener('submit', async (e) => {
             return;
         }
         statusEl.textContent = 'Access granted. Opening dashboard...';
+        showApp(cred.user);
     } catch (err) {
         clearTimeout(timeout);
         console.error("Login Error:", err);
