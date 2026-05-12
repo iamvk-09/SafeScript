@@ -24,7 +24,7 @@ try:
     AI_AVAILABLE = True
     if os.environ.get("GEMINI_API_KEY"):
         genai.configure(api_key=os.environ.get("GEMINI_API_KEY"), transport='rest')
-    GEMINI_MODEL = "gemini-1.5-flash"
+    GEMINI_MODEL = "gemini-3.1-flash-lite"
 except ImportError:
     AI_AVAILABLE = False
 
@@ -344,7 +344,7 @@ def extract_drugs_from_text(text: str) -> List[str]:
         words = re.findall(r'\b[a-zA-Z]{5,}\b', text.lower())
         return list(set(words))
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        model = genai.GenerativeModel('gemini-3.1-flash-lite')
         prompt = f"""You are a highly accurate medical text extraction AI. Extract ONLY valid, real-world medication names.
 Return ONLY a comma-separated list. If no drugs found, return "NONE".
 
@@ -369,7 +369,7 @@ async def extract_from_image(image: UploadFile = File(...)):
         contents = await image.read()
         pil_image = Image.open(io.BytesIO(contents))
         
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        model = genai.GenerativeModel('gemini-3.1-flash-lite')
         prompt = """You are a highly accurate medical prescription analyzer. Look at this image of a prescription or medication bottle.
 Extract ONLY valid, real-world medication names.
 Return ONLY a comma-separated list of the medication names. If no drugs are found, return exactly "NONE"."""
@@ -447,10 +447,10 @@ def generate_ai_response(prompt, safety_settings=None, use_json=True):
     
     # Priority list of models to try
     models_to_try = [
-        'gemini-1.5-flash', 
-        'gemini-1.5-flash-latest', 
-        'gemini-1.5-pro', 
-        'gemini-pro'
+        'gemini-3.1-flash-lite',
+        'gemini-3-flash-preview',
+        'gemini-2.5-flash',
+        'gemini-2.0-flash'
     ]
     
     last_error = None
@@ -473,9 +473,9 @@ def generate_ai_response(prompt, safety_settings=None, use_json=True):
             # Other errors: continue to next model
             continue
     
-    # Final attempt with basic model and no config
+    # Final attempt with a known stable model
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         return model.generate_content(prompt)
     except Exception as e:
         raise last_error if last_error else e
