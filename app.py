@@ -458,9 +458,9 @@ def generate_ai_response(prompt, safety_settings=None, use_json=True):
     
     # Priority list of models to try
     models_to_try = [
-        'gemini-2.0-flash',
         'gemini-1.5-flash',
-        'gemini-1.5-pro'
+        'gemini-1.5-pro',
+        'gemini-pro'
     ]
     
     last_error = None
@@ -483,12 +483,12 @@ def generate_ai_response(prompt, safety_settings=None, use_json=True):
             # Other errors: continue to next model
             continue
     
-    # Final attempt with a known stable model
+    # Final attempt with the most stable model
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         return model.generate_content(prompt)
-    except Exception as e:
-        raise last_error if last_error else e
+    except Exception as final_e:
+        raise last_error if last_error else final_e
 
 @app.post("/api/validate_drug")
 async def validate_drug(req: ValidateRequest):
