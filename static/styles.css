@@ -20,19 +20,19 @@
 }
 
 body.light-mode {
-    --bg-dark: #fcfcfb;
-    --sidebar-bg: rgba(255, 255, 255, 0.75);
-    --panel-bg: rgba(255, 255, 255, 0.45);
-    --panel-border: rgba(0, 0, 0, 0.06);
-    --text-main: #0f172a;
+    --bg-dark: #f0f9ff; /* Very light sky blue */
+    --sidebar-bg: rgba(224, 242, 254, 0.8); /* Light blue glass */
+    --panel-bg: rgba(255, 255, 255, 0.5);
+    --panel-border: rgba(14, 165, 233, 0.15);
+    --text-main: #0c4a6e; /* Deep sky blue */
     --text-muted: #64748b;
     --input-bg: rgba(255, 255, 255, 0.9);
-    --card-bg: rgba(255, 255, 255, 0.7);
-    --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1);
+    --card-bg: rgba(240, 249, 255, 0.8);
+    --shadow: 0 10px 30px -10px rgba(14, 165, 233, 0.2);
     background-image: 
-        radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.15) 0%, transparent 40%),
         radial-gradient(circle at 85% 10%, rgba(236, 72, 153, 0.05) 0%, transparent 40%),
-        radial-gradient(circle at 50% 90%, rgba(56, 189, 248, 0.05) 0%, transparent 40%);
+        radial-gradient(circle at 50% 90%, rgba(99, 102, 241, 0.08) 0%, transparent 40%);
 }
 
 * {
@@ -803,7 +803,7 @@ input:checked + .slider:before { transform: translateX(20px); background-color: 
 }
 
 body.light-mode .auth-overlay {
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(224, 242, 254, 0.85);
 }
 
 .auth-modal {
