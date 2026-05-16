@@ -821,6 +821,76 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ── Camera Feature ──
+    const cameraOverlay = document.getElementById('camera-overlay');
+    const openCameraBtn = document.getElementById('open-camera-btn');
+    const closeCameraBtn = document.getElementById('close-camera-btn');
+    const captureBtn = document.getElementById('capture-btn');
+    const cameraFeed = document.getElementById('camera-feed');
+    const cameraCanvas = document.getElementById('camera-canvas');
+    let stream = null;
+
+    const startCamera = async () => {
+        try {
+            // Prefer back camera on mobile
+            stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    facingMode: { ideal: "environment" },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                } 
+            });
+            cameraFeed.srcObject = stream;
+            cameraOverlay.classList.remove('hidden');
+        } catch (err) {
+            console.error("Camera access failed:", err);
+            alert("Unable to access camera. Please ensure you have granted permission and are using HTTPS.");
+        }
+    };
+
+    const stopCamera = () => {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+        }
+        cameraOverlay.classList.add('hidden');
+    };
+
+    const captureImage = () => {
+        if (!cameraFeed.videoWidth) return;
+
+        const context = cameraCanvas.getContext('2d');
+        cameraCanvas.width = cameraFeed.videoWidth;
+        cameraCanvas.height = cameraFeed.videoHeight;
+        
+        // Flash effect
+        cameraFeed.style.filter = 'brightness(2) contrast(1.5)';
+        setTimeout(() => cameraFeed.style.filter = '', 100);
+
+        context.drawImage(cameraFeed, 0, 0, cameraCanvas.width, cameraCanvas.height);
+        
+        cameraCanvas.toBlob(async (blob) => {
+            const file = new File([blob], "capture.jpg", { type: "image/jpeg" });
+            stopCamera();
+            
+            // Switch to dashboard view if not already there
+            const dashboardTab = document.querySelector('[data-view="dashboard"]');
+            if (dashboardTab) dashboardTab.click();
+            
+            // Process the captured file
+            handleFile(file);
+        }, 'image/jpeg', 0.8);
+    };
+
+    if (openCameraBtn) openCameraBtn.addEventListener('click', startCamera);
+    if (closeCameraBtn) closeCameraBtn.addEventListener('click', stopCamera);
+    if (captureBtn) captureBtn.addEventListener('click', captureImage);
+
+    // Close on overlay click
+    cameraOverlay.addEventListener('click', (e) => {
+        if (e.target === cameraOverlay) stopCamera();
+    });
+
     // ── Initialize ──
     renderDrugs();
 });

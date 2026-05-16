@@ -157,7 +157,10 @@
                                     <input type="file" id="file-input" accept="image/*" hidden>
                                     <i class="fa-solid fa-cloud-arrow-up"></i>
                                     <p>Drag &amp; Drop prescription image</p>
-                                    <button class="browse-btn" onclick="document.getElementById('file-input').click()">Browse Files</button>
+                                    <div class="flex-center gap-2 mt-2">
+                                        <button class="browse-btn" onclick="document.getElementById('file-input').click()"><i class="fa-solid fa-folder-open"></i> Browse Files</button>
+                                        <button id="open-camera-btn" class="camera-btn"><i class="fa-solid fa-camera"></i> Live Scan</button>
+                                    </div>
                                 </div>
                                 <div id="upload-status" class="status-msg hidden"></div>
                             </div>
@@ -262,7 +265,31 @@
     </main>
 </div>
 
+<!-- ── Camera Modal ── -->
+<div id="camera-overlay" class="auth-overlay hidden">
+    <div class="camera-modal glass-panel">
+        <div class="camera-header">
+            <h3><i class="fa-solid fa-camera"></i> Scan Prescription</h3>
+            <button id="close-camera-btn" class="close-btn">&times;</button>
+        </div>
+        <div class="video-container">
+            <video id="camera-feed" autoplay playsinline></video>
+            <div class="scan-overlay">
+                <div class="scan-line"></div>
+                <div class="scan-corners"></div>
+            </div>
+        </div>
+        <canvas id="camera-canvas" class="hidden"></canvas>
+        <div class="camera-controls">
+            <button id="capture-btn" class="capture-btn">
+                <div class="shutter"></div>
+            </button>
+            <p class="text-muted mt-2">Center the prescription in the frame</p>
+        </div>
+    </div>
+</div>
+
 <!-- Firebase SDK -->
-<script type="module" src="/static/script.js?v=5"></script>
+<script type="module" src="/static/script.js?v=6"></script>
 </body>
 </html>
