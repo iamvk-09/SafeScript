@@ -355,7 +355,7 @@ def extract_drugs_from_text(text: str) -> List[str]:
         words = re.findall(r'\b[a-zA-Z]{5,}\b', text.lower())
         return list(set(words))
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-3.1-flash-lite')
         prompt = f"""You are a highly accurate medical text extraction AI. Extract ONLY valid, real-world medication names.
 Return ONLY a comma-separated list. If no drugs found, return "NONE".
 
@@ -380,7 +380,7 @@ async def extract_from_image(image: UploadFile = File(...)):
         contents = await image.read()
         pil_image = Image.open(io.BytesIO(contents))
         
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-3.1-flash-lite')
         prompt = """You are a highly accurate medical prescription analyzer. Look at this image of a prescription or medication bottle.
 Extract ONLY valid, real-world medication names.
 Return ONLY a comma-separated list of the medication names. If no drugs are found, return exactly "NONE"."""
@@ -457,8 +457,8 @@ def generate_ai_response(prompt, safety_settings=None, use_json=True):
     config = {"response_mime_type": "application/json"} if use_json else None
     
     try:
-        print("SafeScript: Trying AI model gemini-1.5-flash...")
-        model = genai.GenerativeModel('gemini-1.5-flash', generation_config=config)
+        print("SafeScript: Trying AI model gemini-3.1-flash-lite...")
+        model = genai.GenerativeModel('gemini-3.1-flash-lite', generation_config=config)
         return model.generate_content(prompt, safety_settings=safety_settings)
     except Exception as e:
         print(f"SafeScript: AI Error: {e}")
