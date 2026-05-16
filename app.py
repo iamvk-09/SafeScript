@@ -458,10 +458,9 @@ def generate_ai_response(prompt, safety_settings=None, use_json=True):
     
     # Priority list of models to try
     models_to_try = [
-        'gemini-3.1-flash-lite',
-        'gemini-3-flash-preview',
-        'gemini-2.5-flash',
-        'gemini-2.0-flash'
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro'
     ]
     
     last_error = None
@@ -563,6 +562,7 @@ async def check_interactions(req: CheckRequest):
         cached["from_cache"] = True
         return cached
 
+    key = os.environ.get("GEMINI_API_KEY", "")
     if AI_AVAILABLE and key and key != "your_api_key_here":
         try:
             patient_context = ""
