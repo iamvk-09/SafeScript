@@ -821,6 +821,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ── Theme Toggle ──
+    const themeToggle = document.getElementById('theme-toggle');
+    const body = document.body;
+
+    // Initialize theme
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    if (savedTheme === 'light') {
+        body.classList.add('light-mode');
+        if (themeToggle) themeToggle.innerHTML = '<i class="fa-solid fa-sun"></i>';
+    }
+
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('light-mode');
+            const isLight = body.classList.contains('light-mode');
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+            themeToggle.innerHTML = isLight ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
+            
+            // Subtle transition effect
+            themeToggle.style.transform = 'rotate(360deg)';
+            setTimeout(() => themeToggle.style.transform = '', 500);
+        });
+    }
+
     // ── Camera Feature ──
     const cameraOverlay = document.getElementById('camera-overlay');
     const openCameraBtn = document.getElementById('open-camera-btn');

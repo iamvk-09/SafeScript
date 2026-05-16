@@ -16,6 +16,23 @@
     --warning-bg: rgba(245, 158, 11, 0.15);
     --input-bg: rgba(9, 9, 11, 0.6);
     --card-bg: rgba(39, 39, 42, 0.5);
+    --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+}
+
+body.light-mode {
+    --bg-dark: #fcfcfb;
+    --sidebar-bg: rgba(255, 255, 255, 0.75);
+    --panel-bg: rgba(255, 255, 255, 0.45);
+    --panel-border: rgba(0, 0, 0, 0.06);
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --input-bg: rgba(255, 255, 255, 0.9);
+    --card-bg: rgba(255, 255, 255, 0.7);
+    --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1);
+    background-image: 
+        radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 10%, rgba(236, 72, 153, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 50% 90%, rgba(56, 189, 248, 0.05) 0%, transparent 40%);
 }
 
 * {
@@ -57,7 +74,7 @@ body {
     border: 1px solid var(--panel-border);
     border-radius: 16px;
     padding: 1.5rem;
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow);
 }
 
 /* Sidebar */
@@ -782,6 +799,11 @@ input:checked + .slider:before { transform: translateX(20px); background-color: 
     justify-content: center;
     z-index: 999;
     animation: fadeIn 0.3s;
+    transition: background 0.3s, backdrop-filter 0.3s;
+}
+
+body.light-mode .auth-overlay {
+    background: rgba(255, 255, 255, 0.85);
 }
 
 .auth-modal {
