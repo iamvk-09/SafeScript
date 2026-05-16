@@ -32,6 +32,8 @@ const auth = getAuth(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
 
 // ── State ──
+let currentUser = null;
+let idToken = null;
 let selectedDrugs = []; // Array of { name: string, dosage: string }
 let cloudHistory = [];
 let patientProfile = { age: '', conditions: '' };
