@@ -23,7 +23,7 @@ try:
     import google.generativeai as genai
     AI_AVAILABLE = True
     if os.environ.get("GEMINI_API_KEY"):
-        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"), transport='rest')
+        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
     GEMINI_MODEL = "gemini-3.1-flash-lite"
 except ImportError:
     AI_AVAILABLE = False
@@ -355,7 +355,7 @@ def extract_drugs_from_text(text: str) -> List[str]:
         words = re.findall(r'\b[a-zA-Z]{5,}\b', text.lower())
         return list(set(words))
     try:
-        model = genai.GenerativeModel('gemini-3.1-flash-lite')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""You are a highly accurate medical text extraction AI. Extract ONLY valid, real-world medication names.
 Return ONLY a comma-separated list. If no drugs found, return "NONE".
 
@@ -380,7 +380,7 @@ async def extract_from_image(image: UploadFile = File(...)):
         contents = await image.read()
         pil_image = Image.open(io.BytesIO(contents))
         
-        model = genai.GenerativeModel('gemini-3.1-flash-lite')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = """You are a highly accurate medical prescription analyzer. Look at this image of a prescription or medication bottle.
 Extract ONLY valid, real-world medication names.
 Return ONLY a comma-separated list of the medication names. If no drugs are found, return exactly "NONE"."""
@@ -456,39 +456,13 @@ def check_nih_interactions(rxcuis):
 def generate_ai_response(prompt, safety_settings=None, use_json=True):
     config = {"response_mime_type": "application/json"} if use_json else None
     
-    # Priority list of models to try
-    models_to_try = [
-        'gemini-1.5-flash',
-        'gemini-1.5-pro',
-        'gemini-pro'
-    ]
-    
-    last_error = None
-    for model_name in models_to_try:
-        try:
-            print(f"SafeScript: Trying AI model {model_name}...")
-            model = genai.GenerativeModel(model_name, generation_config=config)
-            return model.generate_content(prompt, safety_settings=safety_settings)
-        except Exception as e:
-            last_error = e
-            err_str = str(e).lower()
-            # If it's a 404, just move to the next model immediately
-            if "404" in err_str or "not found" in err_str:
-                continue
-            # If it's a quota error, wait a bit and try next
-            if "429" in err_str or "quota" in err_str:
-                import time
-                time.sleep(1)
-                continue
-            # Other errors: continue to next model
-            continue
-    
-    # Final attempt with the most stable model
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        return model.generate_content(prompt)
-    except Exception as final_e:
-        raise last_error if last_error else final_e
+        print("SafeScript: Trying AI model gemini-1.5-flash...")
+        model = genai.GenerativeModel('gemini-1.5-flash', generation_config=config)
+        return model.generate_content(prompt, safety_settings=safety_settings)
+    except Exception as e:
+        print(f"SafeScript: AI Error: {e}")
+        raise e
 
 @app.post("/api/validate_drug")
 async def validate_drug(req: ValidateRequest):
@@ -595,12 +569,6 @@ Rules:
 
             response = generate_ai_response(
                 prompt,
-                safety_settings={
-                    'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
-                    'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
-                    'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
-                    'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
-                },
                 use_json=False
             )
 
